@@ -1,0 +1,88 @@
+# -*- encoding: utf-8 -*-
+
+from openerp.osv import fields, orm
+from openerp.tools.translate import _
+
+from openerp.addons.pentaho_reports.core import VALID_OUTPUT_TYPES
+from openerp.addons.pentaho_reports.java_oe import OPENERP_DATA_TYPES, PARAM_VALUES
+
+
+class store_parameters_wizard(orm.TransientModel):
+    _name = "ir.actions.store.params.wiz"
+    _description = "Store Pentaho Parameters Wizard"
+
+    _columns = {
+                'existing_parameters_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set'),
+                'name': fields.char('Parameter Set Description', size=64),
+                'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
+                'detail_ids': fields.one2many('ir.actions.store.params.detail.wiz', 'header_id', 'Parameter Details'),
+                }
+
+    def default_get(self, cr, uid, fields, context=None):
+        if context is None:
+            context = {}
+
+        parameter_dictionary = self.pool.get('ir.actions.report.promptwizard').parameters
+
+        screen_wizard_pool = self.pool.get('ir.actions.report.promptwizard')
+        screen_wizard = screen_wizard_pool.browse(cr, uid, context.get('active_id', False))
+
+        res = super(store_parameters_wizard, self).default_get(cr, uid, fields, context=context)
+        res['existing_parameters_id'] = screen_wizard.parameter_set_id.id
+
+        if screen_wizard.parameter_set_id:
+            res['name'] = screen_wizard.parameter_set_id.name
+
+        res['output_type'] = screen_wizard.output_type
+
+        res['detail_ids'] = []
+        for index in range(0, len(parameter_dictionary)):
+            res['detail_ids'].append((0, 0, {'variable': parameter_dictionary[index]['variable'],
+                                             'label': parameter_dictionary[index]['label'],
+                                             'counter': index,
+                                             'type': parameter_dictionary[index]['type'],
+                                             'display_value': screen_wizard.__getitem__(PARAM_VALUES[parameter_dictionary[index]['type']]['value'] % index),
+                                             }))
+
+        return res
+
+
+    def button_store(self, cr, uid, ids, context=None):
+        header_obj = self.pool.get('ir.actions.report.set.header')
+        detail_obj = self.pool.get('ir.actions.report.set.detail')
+
+        for wizard in self.browse(cr, uid, ids, context=context):
+            vals = {'name': wizard.name,
+                    'output_type': wizard.output_type,
+                    'detail_ids': False,
+                    }
+
+            if wizard.existing_parameters_id:
+                header_obj.write(cr, uid, [wizard.existing_parameters_id.id], vals, context=context)
+                hdr_id = wizard.existing_parameters_id.id
+            else:
+                hdr_id = header_obj.create(cr, uid, vals, context=context)
+
+            for detail in wizard.detail_ids:
+                detail_obj.create(cr, uid, {'header_id': hdr_id,
+                                            'variable': detail.variable,
+                                            'label': detail.label,
+                                            'counter': detail.counter,
+                                            'type': detail.type,
+                                            'display_value': detail.display_value,
+                                            }, context=context)
+
+        return {'type': 'ir.actions.act_window_close'}
+
+
+class store_parameters_dets_wizard(orm.TransientModel):
+    _name = 'ir.actions.store.params.detail.wiz'
+    _description = "Store Pentaho Parameters Wizard"
+
+    _columns = {'header_id': fields.many2one('ir.actions.store.params.wiz', 'Parameter Set'),
+                'variable': fields.char('Variable Name', size=64),
+                'label': fields.char('Label', size=64),
+                'counter': fields.integer('Parameter Number'),
+                'type': fields.selection(OPENERP_DATA_TYPES, 'Data Type'),
+                'display_value': fields.char('Value', size=64),
+                }

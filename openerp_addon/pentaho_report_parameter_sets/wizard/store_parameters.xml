@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+	<data>
+		<record id="view_store_parameters" model="ir.ui.view">
+			<field name="name">Store Report Parameters</field>
+			<field name="model">ir.actions.store.params.wiz</field>
+			<field name="arch" type="xml">
+				<form string="Store Report Parameters" version="7.0">
+					<group>
+						<field name='existing_parameters_id' invisible='1'/>
+						<field name='name'/>
+						<field name='output_type'/>
+						<field name='detail_ids' invisible='1'/>
+					</group>
+					<footer>
+						<button name="button_store" string="_Store Parameters" type="object" class="oe_highlight"/>
+						or
+						<button string="Cancel" class="oe_link" special="cancel" />
+					</footer>
+				</form>
+			</field>
+		</record>
+
+		<record id="action_store_parameters" model="ir.actions.act_window">
+			<field name="name">Store Report Parameters</field>
+			<field name="type">ir.actions.act_window</field>
+			<field name="res_model">ir.actions.store.params.wiz</field>
+			<field name="view_type">form</field>
+			<field name="view_mode">form</field>
+			<field name="view_id" ref="view_store_parameters"/>
+			<field name="target">new</field>
+		</record>
+
+	</data>
+</openerp>
+

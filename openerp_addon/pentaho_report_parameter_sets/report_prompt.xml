@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<openerp>
+	<data>
+		<record model='ir.ui.view' id='wiz_pentaho_report_prompt_params'>
+			<field name='name'>Pentaho Report Options with Stored Params</field>
+			<field name='model'>ir.actions.report.promptwizard</field>
+			<field name='inherit_id' ref='pentaho_reports.wiz_pentaho_report_prompt'/>
+			<field name='arch' type='xml'>
+				<group name='parameters' position='before'>
+					<button name="%(action_store_parameters)d" type="action" string="Store"/>
+				</group>
+			</field>
+		</record>
+	</data>
+</openerp>
