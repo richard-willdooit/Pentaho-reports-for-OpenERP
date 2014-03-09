@@ -62,7 +62,7 @@ class store_parameters_wizard(orm.TransientModel):
                     'report_action_id': wizard.report_action_id.id,
                     'output_type': wizard.output_type,
                     'parameters_dictionary': wizard.parameters_dictionary,
-                    'detail_ids': False,
+                    'detail_ids': [(5,)],
                     }
 
             if wizard.existing_parameters_id:

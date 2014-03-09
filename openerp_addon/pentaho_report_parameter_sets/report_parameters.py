@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 
 from datetime import date, datetime
+from dateutil import parser
 import pytz
 import json
 
@@ -10,6 +11,24 @@ from openerp.tools.translate import _
 
 from openerp.addons.pentaho_reports.java_oe import *
 from openerp.addons.pentaho_reports.core import VALID_OUTPUT_TYPES
+
+
+def conv_to_number(s):
+    if type(s) in (str, unicode) and s == "":
+        s = 0
+    try:
+        f = float(s)
+        return f
+    except ValueError:
+        return 0
+
+
+def conv_to_datetime(s):
+    try:
+        dt = parser.parse(s, fuzzy=True, dayfirst=True)
+        return dt
+    except ValueError:
+        return datetime.now()
 
 
 class parameter_set_header(orm.Model):
@@ -24,8 +43,22 @@ class parameter_set_header(orm.Model):
                 'detail_ids': fields.one2many('ir.actions.report.set.detail', 'header_id', 'Parameter Details'),
                 }
 
+    def parameters_to_dictionary(self, cr, uid, id, parameters, context=None):
+        detail_obj = self.pool.get('ir.actions.report.set.detail')
 
-class parameter_set_parameters(orm.Model):
+        result = {}
+        parameters_to_load = self.browse(cr, uid, id, context=context)
+        for index in range(0, len(parameters)):
+            for detail in parameters_to_load.detail_ids:
+                if detail.variable == parameters[index]['variable']:
+                    expected_type = parameters[index]['type']
+                    # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
+                    result[PARAM_VALUES[expected_type]['value'] % index] = detail_obj.validate_display_value(cr, uid, detail, expected_type, context=context)
+                    break
+        return result
+
+
+class parameter_set_detail(orm.Model):
     _name = 'ir.actions.report.set.detail'
     _description = 'Pentaho Report Parameter Set Detail'
 
@@ -38,6 +71,23 @@ class parameter_set_parameters(orm.Model):
                 }
 
     _order = 'counter'
+
+    def validate_display_value(self, cr, uid, detail, expected_type, context=None):
+        result = False
+        # Be forgiving as possible here for possible parameter type changes
+        if expected_type == TYPE_STRING:
+            result = detail.display_value
+        if expected_type == TYPE_BOOLEAN:
+            result = detail.display_value and detail.display_value.lower() in ('true', 't', '1', 'yes', 'y')
+        if expected_type == TYPE_INTEGER:
+            result = int(conv_to_number(detail.display_value))
+        if expected_type == TYPE_NUMBER:
+            result = conv_to_number(detail.display_value)
+        if expected_type == TYPE_DATE:
+            result = conv_to_datetime(detail.display_value)
+        if expected_type == TYPE_TIME:
+            result = conv_to_datetime(detail.display_value)
+        return result
 
 
 class report_prompt_with_parameter_set(orm.TransientModel):
@@ -60,14 +110,6 @@ class report_prompt_with_parameter_set(orm.TransientModel):
             xxxxx
         else:
             parameters = json.loads(parameters_dictionary)
-            parameters_to_load = self.pool.get('ir.actions.report.set.header').browse(cr, uid, parameter_set_id, context=context)
-            for index in range(0, len(parameters)):
-                for parameter in parameters_to_load.detail_ids:
-                    if parameter.variable == parameters[index]['variable']:
-                        expected_type = parameters[index]['type']
-                        # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
-
-                        result['value'][PARAM_VALUES[expected_type]['value'] % index] = parameter.display_value
-                        break
+            result['value'].update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, parameter_set_id, parameters, context=context))
 
         return result
