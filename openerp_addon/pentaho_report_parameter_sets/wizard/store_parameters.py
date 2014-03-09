@@ -1,5 +1,7 @@
 # -*- encoding: utf-8 -*-
 
+import json
+
 from openerp.osv import fields, orm
 from openerp.tools.translate import _
 
@@ -14,34 +16,38 @@ class store_parameters_wizard(orm.TransientModel):
     _columns = {
                 'existing_parameters_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set'),
                 'name': fields.char('Parameter Set Description', size=64),
+                'report_action_id': fields.many2one('ir.actions.report.xml', 'Report Name', readonly=True),
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
+                'parameters_dictionary': fields.text('parameter dictionary'),
                 'detail_ids': fields.one2many('ir.actions.store.params.detail.wiz', 'header_id', 'Parameter Details'),
                 }
 
     def default_get(self, cr, uid, fields, context=None):
         if context is None:
             context = {}
-
-        parameter_dictionary = self.pool.get('ir.actions.report.promptwizard').parameters
+        if not context.get('active_id'):
+            raise orm.except_orm(_('Error'), _('No active id passed.'))
 
         screen_wizard_pool = self.pool.get('ir.actions.report.promptwizard')
-        screen_wizard = screen_wizard_pool.browse(cr, uid, context.get('active_id', False))
+        screen_wizard = screen_wizard_pool.browse(cr, uid, context['active_id'])
+
+        parameters_dictionary = json.loads(screen_wizard.parameters_dictionary)
 
         res = super(store_parameters_wizard, self).default_get(cr, uid, fields, context=context)
-        res['existing_parameters_id'] = screen_wizard.parameter_set_id.id
+        res.update({'existing_parameters_id': screen_wizard.parameter_set_id.id,
+                    'name': screen_wizard.parameter_set_id and screen_wizard.parameter_set_id.name or '',
+                    'report_action_id': screen_wizard.report_action_id.id,
+                    'output_type': screen_wizard.output_type,
+                    'parameters_dictionary': screen_wizard.parameters_dictionary,
+                    'detail_ids': [],
+                    })
 
-        if screen_wizard.parameter_set_id:
-            res['name'] = screen_wizard.parameter_set_id.name
-
-        res['output_type'] = screen_wizard.output_type
-
-        res['detail_ids'] = []
-        for index in range(0, len(parameter_dictionary)):
-            res['detail_ids'].append((0, 0, {'variable': parameter_dictionary[index]['variable'],
-                                             'label': parameter_dictionary[index]['label'],
+        for index in range(0, len(parameters_dictionary)):
+            res['detail_ids'].append((0, 0, {'variable': parameters_dictionary[index]['variable'],
+                                             'label': parameters_dictionary[index]['label'],
                                              'counter': index,
-                                             'type': parameter_dictionary[index]['type'],
-                                             'display_value': screen_wizard.__getitem__(PARAM_VALUES[parameter_dictionary[index]['type']]['value'] % index),
+                                             'type': parameters_dictionary[index]['type'],
+                                             'display_value': screen_wizard.__getitem__(PARAM_VALUES[parameters_dictionary[index]['type']]['value'] % index),
                                              }))
 
         return res
@@ -53,7 +59,9 @@ class store_parameters_wizard(orm.TransientModel):
 
         for wizard in self.browse(cr, uid, ids, context=context):
             vals = {'name': wizard.name,
+                    'report_action_id': wizard.report_action_id.id,
                     'output_type': wizard.output_type,
+                    'parameters_dictionary': wizard.parameters_dictionary,
                     'detail_ids': False,
                     }
 

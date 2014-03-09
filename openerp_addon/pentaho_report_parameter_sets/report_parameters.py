@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 import pytz
+import json
 
 from openerp.osv import orm, fields
 from openerp.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
@@ -17,7 +18,9 @@ class parameter_set_header(orm.Model):
 
     _columns = {
                 'name': fields.char('Parameter Set Description', size=64),
+                'report_action_id': fields.many2one('ir.actions.report.xml', 'Report Name', readonly=True),
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
+                'parameters_dictionary': fields.text('parameter dictionary'), # Not needed, but helpful if we build a parameter set master view...
                 'detail_ids': fields.one2many('ir.actions.report.set.detail', 'header_id', 'Parameter Details'),
                 }
 
@@ -26,7 +29,7 @@ class parameter_set_parameters(orm.Model):
     _name = 'ir.actions.report.set.detail'
     _description = 'Pentaho Report Parameter Set Detail'
 
-    _columns = {'header_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', readonly=True),
+    _columns = {'header_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', ondelete='cascade', readonly=True),
                 'variable': fields.char('Variable Name', size=64, readonly=True),
                 'label': fields.char('Label', size=64, readonly=True),
                 'counter': fields.integer('Parameter Number', readonly=True),
@@ -41,24 +44,30 @@ class report_prompt_with_parameter_set(orm.TransientModel):
     _inherit = 'ir.actions.report.promptwizard'
 
     _columns = {
+                'has_params': fields.boolean('Has Parameters...'),
                 'parameter_set_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set'),
                 }
 
     def default_get(self, cr, uid, fields, context=None):
         result = super(report_prompt_with_parameter_set, self).default_get(cr, uid, fields, context=context)
+        result['has_params'] = self.pool.get('ir.actions.report.set.header').search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context, count=True) > 0
+        return result
 
-        if (context or {}).get('load_parameters_id'):
-            result['parameter_set_id'] = context['load_parameters_id']
+    def onchange_parameter_set_id(self, cr, uid, ids, parameter_set_id, parameters_dictionary, context=None):
+        result = {'value': {}}
 
-            parameters_to_load = self.pool.get('ir.actions.report.set.header').browse(cr, uid, load_parameters_id, context=context)
-            for index in range(0, len(self.parameters)):
+        if not parameter_set_id:
+            xxxxx
+        else:
+            parameters = json.loads(parameters_dictionary)
+            parameters_to_load = self.pool.get('ir.actions.report.set.header').browse(cr, uid, parameter_set_id, context=context)
+            for index in range(0, len(parameters)):
                 for parameter in parameters_to_load.detail_ids:
-                    if parameter.variable == self.parameters[index]['variable']:
-                        expected_type = self.parameters[index]['type']
+                    if parameter.variable == parameters[index]['variable']:
+                        expected_type = parameters[index]['type']
                         # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
 
-                        result[PARAM_VALUES[expected_type]['value'] % index] = parameter.display_value
+                        result['value'][PARAM_VALUES[expected_type]['value'] % index] = parameter.display_value
                         break
 
         return result
-
