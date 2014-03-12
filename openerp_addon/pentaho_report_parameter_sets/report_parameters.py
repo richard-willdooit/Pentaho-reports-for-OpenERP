@@ -43,8 +43,9 @@ class parameter_set_header(orm.Model):
                 'detail_ids': fields.one2many('ir.actions.report.set.detail', 'header_id', 'Parameter Details'),
                 }
 
-    def parameters_to_dictionary(self, cr, uid, id, parameters, context=None):
+    def parameters_to_dictionary(self, cr, uid, id, parameters, x2m_unique_id, context=None):
         detail_obj = self.pool.get('ir.actions.report.set.detail')
+        wiz_obj = self.pool.get('ir.actions.report.promptwizard')
 
         result = {}
         parameters_to_load = self.browse(cr, uid, id, context=context)
@@ -53,7 +54,12 @@ class parameter_set_header(orm.Model):
                 if detail.variable == parameters[index]['variable']:
                     expected_type = parameters[index]['type']
                     # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
-                    result[PARAM_VALUES[expected_type]['value'] % index] = detail_obj.validate_display_value(cr, uid, detail, expected_type, context=context)
+
+                    if parameter_can_2m(parameters, index):
+                        value = detail.display_value
+                    else:
+                        value = detail_obj.validate_display_value(cr, uid, detail, expected_type, context=context)
+                    result[parameter_resolve_column_name(parameters, index)] = wiz_obj.encode_wizard_value(cr, uid, parameters, index, x2m_unique_id, value, enc_json=True, context=context)
                     break
         return result
 
@@ -67,7 +73,7 @@ class parameter_set_detail(orm.Model):
                 'label': fields.char('Label', size=64, readonly=True),
                 'counter': fields.integer('Parameter Number', readonly=True),
                 'type': fields.selection(OPENERP_DATA_TYPES, 'Data Type', readonly=True),
-                'display_value': fields.char('Value', size=64),
+                'display_value': fields.text('Value'),
                 }
 
     _order = 'counter'
@@ -103,13 +109,13 @@ class report_prompt_with_parameter_set(orm.TransientModel):
         result['has_params'] = self.pool.get('ir.actions.report.set.header').search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context, count=True) > 0
         return result
 
-    def onchange_parameter_set_id(self, cr, uid, ids, parameter_set_id, parameters_dictionary, context=None):
+    def onchange_parameter_set_id(self, cr, uid, ids, parameter_set_id, parameters_dictionary, x2m_unique_id, context=None):
         result = {'value': {}}
 
         if not parameter_set_id:
             xxxxx
         else:
             parameters = json.loads(parameters_dictionary)
-            result['value'].update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, parameter_set_id, parameters, context=context))
+            result['value'].update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, parameter_set_id, parameters, x2m_unique_id, context=context))
 
         return result

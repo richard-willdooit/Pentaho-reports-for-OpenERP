@@ -6,7 +6,7 @@ from openerp.osv import fields, orm
 from openerp.tools.translate import _
 
 from openerp.addons.pentaho_reports.core import VALID_OUTPUT_TYPES
-from openerp.addons.pentaho_reports.java_oe import OPENERP_DATA_TYPES, PARAM_VALUES
+from openerp.addons.pentaho_reports.java_oe import OPENERP_DATA_TYPES, parameter_resolve_column_name
 
 
 class store_parameters_wizard(orm.TransientModel):
@@ -47,7 +47,7 @@ class store_parameters_wizard(orm.TransientModel):
                                              'label': parameters_dictionary[index]['label'],
                                              'counter': index,
                                              'type': parameters_dictionary[index]['type'],
-                                             'display_value': screen_wizard.__getitem__(PARAM_VALUES[parameters_dictionary[index]['type']]['value'] % index),
+                                             'display_value': screen_wizard_pool.decode_wizard_value(cr, uid, parameters_dictionary, index, getattr(screen_wizard, parameter_resolve_column_name(parameters_dictionary, index)), enc_json=True, context=context),
                                              }))
 
         return res
@@ -92,5 +92,5 @@ class store_parameters_dets_wizard(orm.TransientModel):
                 'label': fields.char('Label', size=64),
                 'counter': fields.integer('Parameter Number'),
                 'type': fields.selection(OPENERP_DATA_TYPES, 'Data Type'),
-                'display_value': fields.char('Value', size=64),
+                'display_value': fields.text('Value'),
                 }
