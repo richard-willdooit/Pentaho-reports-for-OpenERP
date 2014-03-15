@@ -8,6 +8,8 @@ from openerp.tools.translate import _
 from openerp.addons.pentaho_reports.core import VALID_OUTPUT_TYPES
 from openerp.addons.pentaho_reports.java_oe import OPENERP_DATA_TYPES, parameter_resolve_column_name
 
+from ..report_formulae import *
+
 
 class store_parameters_wizard(orm.TransientModel):
     _name = "ir.actions.store.params.wiz"
@@ -48,6 +50,7 @@ class store_parameters_wizard(orm.TransientModel):
                                              'counter': index,
                                              'type': parameters_dictionary[index]['type'],
                                              'display_value': screen_wizard_pool.decode_wizard_value(cr, uid, parameters_dictionary, index, getattr(screen_wizard, parameter_resolve_column_name(parameters_dictionary, index)), enc_json=True, context=context),
+                                             'calc_formula': getattr(screen_wizard, parameter_resolve_formula_column_name(parameters_dictionary, index)),
                                              }))
 
         return res
@@ -78,6 +81,7 @@ class store_parameters_wizard(orm.TransientModel):
                                             'counter': detail.counter,
                                             'type': detail.type,
                                             'display_value': detail.display_value,
+                                            'calc_formula': detail.calc_formula,
                                             }, context=context)
 
         return {'type': 'ir.actions.act_window_close'}
@@ -93,4 +97,5 @@ class store_parameters_dets_wizard(orm.TransientModel):
                 'counter': fields.integer('Parameter Number'),
                 'type': fields.selection(OPENERP_DATA_TYPES, 'Data Type'),
                 'display_value': fields.text('Value'),
+                'calc_formula': fields.char('Formula'),
                 }
