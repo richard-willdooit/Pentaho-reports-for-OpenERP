@@ -69,19 +69,75 @@ class parameter_set_header(orm.Model):
 
         result = {}
         parameters_to_load = self.browse(cr, uid, id, context=context)
-        for index in range(0, len(parameters)):
-            for detail in parameters_to_load.detail_ids:
-                if detail.variable == parameters[index]['variable']:
-                    expected_type = parameters[index]['type']
-                    # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
 
-                    if parameter_can_2m(parameters, index):
-                        value = detail.display_value
-                    else:
-                        value = detail_obj.validate_display_value(cr, uid, detail, expected_type, context=context)
-                    result[parameter_resolve_column_name(parameters, index)] = wiz_obj.encode_wizard_value(cr, uid, parameters, index, x2m_unique_id, value, enc_json=True, context=context)
-                    result[parameter_resolve_formula_column_name(parameters, index)] = detail.calc_formula
-                    break
+        arbitrary_force_calc = False
+        known_variables = {}
+        for index in range(0, len(parameters)):
+            known_variables[parameters[index]['variable']] = {'type': parameters[index]['type'],
+                                                              'calculated': False,
+                                                              }
+
+        while True:
+            any_calculated_this_time = False
+            still_needed_dependent_values = []
+            for index in range(0, len(parameters)):
+                if not known_variables[parameters[index]['variable']]['calculated']:
+                    for detail in parameters_to_load.detail_ids:
+                        if detail.variable == parameters[index]['variable']:
+                            expected_type = parameters[index]['type']
+                            # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
+
+                            if not detail.calc_formula:
+                                calculate_formula_this_time = False
+                                override_formula_this_time = True
+
+                            else:
+                                formula = validate_formula(detail.calc_formula, expected_type, known_variables, fuzzy=True)
+
+                                # if there is an error, we want to ignore the formula and use standard processing of the value...
+                                # if we are arbitrarily forcing a value, then also use standard processing of the value...
+                                # if no error, then try to evaluate the formula
+                                if formula['error'] or detail.variable == arbitrary_force_calc:
+                                    calculate_formula_this_time = False
+                                    override_formula_this_time = True
+
+                                else:
+                                    calculate_formula_this_time = True
+                                    override_formula_this_time = False
+
+                                    for dv in formula['dependent_values']:
+                                        if not known_variables[dv].calculated:
+                                            calculate_formula_this_time = False
+                                            still_needed_dependent_values.append(dv)
+
+                            if calculate_formula_this_time or override_formula_this_time:
+                                if calculate_formula_this_time:
+                                    xxxxxxxxx
+
+                                if ignore_formula_this_time:
+                                    if parameter_can_2m(parameters, index):
+                                        value = detail.display_value
+                                    else:
+                                        value = detail_obj.validate_display_value(cr, uid, detail, expected_type, context=context)
+                                    result[parameter_resolve_column_name(parameters, index)] = wiz_obj.encode_wizard_value(cr, uid, parameters, index, x2m_unique_id, value, enc_json=True, context=context)
+
+                                result[parameter_resolve_formula_column_name(parameters, index)] = detail.calc_formula
+
+                                known_variables[parameters[index]['variable']]['calculated'] = True
+                                any_calculated_this_time = True
+
+                            break
+
+            # if there are no outstanding calculations, then break
+            if not still_needed_dependent_values:
+                break
+
+            # if some were calculated, and there are outstanding calculations, then loop again
+            # if none were calculated, then force a calculation to break potential deadlocks of dependent values
+            if any_calculated_this_time:
+                arbitrary_force_calc = False
+            else:
+                arbitrary_force_calc = still_needed_dependent_values[0]
         return result
 
 
