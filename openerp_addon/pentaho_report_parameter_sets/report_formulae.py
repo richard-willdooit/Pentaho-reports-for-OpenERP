@@ -22,13 +22,13 @@ FUNCTION_TYPES = OPENERP_DATA_TYPES + [(FTYPE_TIMEDELTA, 'Time Delta')]
 
 FORMULAE = {'today': {'type': TYPE_TIME,
                       'parameters': [],
-                      'call': 'datetime.today',
+                      'call': 'self.localise(cr, uid, datetime.today(), context=context)',
                       },
 
             'hours': {'type': FTYPE_TIMEDELTA,
                       'parameters': [('hours', (TYPE_INTEGER, TYPE_NUMBER)),
                                      ],
-                      'call': 'timedelta',
+                      'call': 'timedelta(%1)',
                       }
             }
 
@@ -58,7 +58,7 @@ def discard_firstchar(s):
 def establish_type(s, known_variables):
     if len(s) >= 2 and s[:1] in QUOTES and s[-1:] == s[:1]:
         return TYPE_STRING, VALUE_CONSTANT
-    if len(s) > 1 and s[:1] in DIGITS:
+    if len(s) > 0 and s[:1] in DIGITS:
         try:
             i = int(s)
             return TYPE_INTEGER, VALUE_CONSTANT
@@ -74,7 +74,7 @@ def establish_type(s, known_variables):
 def retrieve_value(s, known_variables):
     if len(s) >= 2 and s[:1] in QUOTES and s[-1:] == s[:1]:
         return s[1:-1]
-    if len(s) > 1 and s[:1] in DIGITS:
+    if len(s) > 0 and s[:1] in DIGITS:
         try:
             i = int(s)
             return i
@@ -97,10 +97,7 @@ class parameter_set_formula(orm.Model):
     _name = 'ir.actions.report.set.formula'
     _description = 'Pentaho Report Parameter Set Formulae'
 
-    _columns = {'name': fields.char('Name', size=64),
-                'type': fields.selection('Evaluates to type', OPENERP_DATA_TYPES),
-                'call': fields.char('Function to Call', size=32),
-                'param_defs': fields.one2many('ir.actions.report.set.formula.param', 'formula_id')
+    _columns = {
                 }
 
 
@@ -159,18 +156,18 @@ class parameter_set_formula(orm.Model):
                         for index in range(0, len(operand_dictionary['function_params'])):
                             function_param = operand_dictionary['function_params'][index]
                             value_gives_type, value_is_type = establish_type(function_param, known_variables)
-                            if value_is_type != VALUE_UNKNOWN:
-                                operand_dictionary['error'] = _('Parameter value unknown for formula %s: %s') % (function_name, function_param)
+                            if value_is_type == VALUE_UNKNOWN:
+                                operand_dictionary['error'] = _('Parameter value unknown for formula "%s": %s') % (function_name, function_param)
                                 break
                             if not value_gives_type in FORMULAE.get(function_name, {}).get('parameters', [])[index][1]:
-                                operand_dictionary['error'] = _('Parameter type mismatch for formula %s parameter %s: %s') % (function_name, index+1, function_param)
+                                operand_dictionary['error'] = _('Parameter type mismatch for formula "%s" parameter %s: %s') % (function_name, index+1, function_param)
                                 break
 
                     if operand:
                         # remove ')'
                         operand = discard_firstchar(operand)
                         if operand:
-                            operand_dictionary['error'] = _('Unable to interpret beyond formula %s: %s') % (function_name, operand)
+                            operand_dictionary['error'] = _('Unable to interpret beyond formula "%s": %s') % (function_name, operand)
                     else:
                         operand_dictionary['error'] = _('Formula not closed: %s') % (function_name)
 
@@ -197,15 +194,15 @@ class parameter_set_formula(orm.Model):
         formula_definition = FORMULAE[operand_dictionary['function_name']]
 
         variables = {}
-        eval_string = formula_definition['call'] + '('
+        eval_string = formula_definition['call']
         for index in range(0, len(formula_definition['parameters'])):
-            if index>0:
-                eval_string += ','
             variables[index] = retrieve_value(operand_dictionary['function_params'][index], known_variables)
+            value = 'variables[%s]' % (index,)
+
             if formula_definition['parameters'][index][0]:
-                eval_string += formula_definition['parameters'][index][0] + '='
-            eval_string += 'variables[%s]' % (index,)
-        eval_string += ')'
+                value = formula_definition['parameters'][index][0] + '=' + value
+
+            eval_string = eval_string.replace('%%%s' % (index+1,), value)
         return operand_dictionary['operator'], operand_dictionary['returns'], eval(eval_string)
 
     def check_string_formula(self, cr, uid, operands, context=None):
@@ -265,6 +262,8 @@ class parameter_set_formula(orm.Model):
             self.operand_type_check(cr, uid, operand_dictionary, '+-', (FTYPE_TIMEDELTA), context=context)
 
     def eval_date_formula(self, cr, uid, operands, known_variables, expected_type, context=None):
+        import ipdb
+        ipbd.set_trace()
         # all parameters have been validated as correct type, so these are redundant - if it errors, then we have a coding problem in the formula checks...
         def to_date(value, op_type):
             return op_type in (TYPE_DATE, TYPE_TIME) and value or datetime.now()
@@ -277,6 +276,11 @@ class parameter_set_formula(orm.Model):
             op_op, op_type, op_result = self.eval_operand(cr, uid, operand_dictionary, known_variables, context=context)
             result_dtm = eval('result_dtm %s to_timedelta(op_result, op_type)' % (op_op,))
         return expected_type == TYPE_DATE and result_dtm.strftime(DEFAULT_SERVER_DATE_FORMAT) or result_dtm.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+
+    def localise(self, cr, uid, value, context=None):
+        if context is None:
+            context = {}
+        return value
 
     def validate_formula(self, cr, uid, formula_str, expected_type, known_variables, context=None):
         """
