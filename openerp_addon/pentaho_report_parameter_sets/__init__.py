@@ -1,4 +1,4 @@
 # -*- encoding: utf-8 -*-
 
-import report_parameters
+import report_formulae, report_parameters
 import wizard

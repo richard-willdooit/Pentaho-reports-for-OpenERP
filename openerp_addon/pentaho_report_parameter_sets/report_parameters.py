@@ -30,7 +30,7 @@ def conv_to_date(s):
     result = None
     if s:
         try:
-            result = datetime.strptime(s, DEFAULT_SERVER_DATE_FORMAT).date()
+            result = datetime.strptime(s, DEFAULT_SERVER_DATETIME_FORMAT).date()
         except ValueError:
             try:
                 result = parser.parse(s, fuzzy=True, dayfirst=True).date()
@@ -42,7 +42,7 @@ def conv_to_datetime(s):
     result = None
     if s:
         try:
-            result = datetime.strptime(s, DEFAULT_SERVER_DATE_FORMAT).date()
+            result = datetime.strptime(s, DEFAULT_SERVER_DATETIME_FORMAT)
         except ValueError:
             try:
                 result = parser.parse(s, fuzzy=True, dayfirst=True)
@@ -67,10 +67,12 @@ class parameter_set_header(orm.Model):
         detail_obj = self.pool.get('ir.actions.report.set.detail')
         wiz_obj = self.pool.get('ir.actions.report.promptwizard')
 
+        formula_obj = self.pool.get('ir.actions.report.set.formula')
+
         result = {}
         parameters_to_load = self.browse(cr, uid, id, context=context)
 
-        arbitrary_force_calc = False
+        arbitrary_force_calc = None
         known_variables = {}
         for index in range(0, len(parameters)):
             known_variables[parameters[index]['variable']] = {'type': parameters[index]['type'],
@@ -87,34 +89,29 @@ class parameter_set_header(orm.Model):
                             expected_type = parameters[index]['type']
                             # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
 
-                            if not detail.calc_formula:
-                                calculate_formula_this_time = False
-                                override_formula_this_time = True
+                            calculate_formula_this_time = False
+                            use_value_this_time = True
 
-                            else:
-                                formula = validate_formula(detail.calc_formula, expected_type, known_variables, fuzzy=True)
-
+                            if detail.calc_formula:
+                                formula = formula_obj.validate_formula(cr, uid, detail.calc_formula, expected_type, known_variables, context=context)
+                                #
                                 # if there is an error, we want to ignore the formula and use standard processing of the value...
                                 # if we are arbitrarily forcing a value, then also use standard processing of the value...
                                 # if no error, then try to evaluate the formula
                                 if formula['error'] or detail.variable == arbitrary_force_calc:
-                                    calculate_formula_this_time = False
-                                    override_formula_this_time = True
-
+                                    pass
                                 else:
                                     calculate_formula_this_time = True
-                                    override_formula_this_time = False
-
                                     for dv in formula['dependent_values']:
-                                        if not known_variables[dv].calculated:
+                                        if not known_variables[dv]['calculated']:
                                             calculate_formula_this_time = False
+                                            use_value_this_time = False
                                             still_needed_dependent_values.append(dv)
 
-                            if calculate_formula_this_time or override_formula_this_time:
+                            if calculate_formula_this_time or use_value_this_time:
                                 if calculate_formula_this_time:
-                                    xxxxxxxxx
-
-                                if ignore_formula_this_time:
+                                    result[parameter_resolve_column_name(parameters, index)] = formula_obj.evaluate_formula(cr, uid, formula, expected_type, known_variables, context=context)
+                                else:
                                     if parameter_can_2m(parameters, index):
                                         value = detail.display_value
                                     else:
@@ -123,9 +120,10 @@ class parameter_set_header(orm.Model):
 
                                 result[parameter_resolve_formula_column_name(parameters, index)] = detail.calc_formula
 
-                                known_variables[parameters[index]['variable']]['calculated'] = True
+                                known_variables[parameters[index]['variable']].update({'calculated': True,
+                                                                                       'calced_value': result[parameter_resolve_column_name(parameters, index)],
+                                                                                       })
                                 any_calculated_this_time = True
-
                             break
 
             # if there are no outstanding calculations, then break
@@ -135,7 +133,7 @@ class parameter_set_header(orm.Model):
             # if some were calculated, and there are outstanding calculations, then loop again
             # if none were calculated, then force a calculation to break potential deadlocks of dependent values
             if any_calculated_this_time:
-                arbitrary_force_calc = False
+                arbitrary_force_calc = None
             else:
                 arbitrary_force_calc = still_needed_dependent_values[0]
         return result
