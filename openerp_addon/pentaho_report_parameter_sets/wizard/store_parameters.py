@@ -55,7 +55,6 @@ class store_parameters_wizard(orm.TransientModel):
 
         return res
 
-
     def button_store(self, cr, uid, ids, context=None):
         header_obj = self.pool.get('ir.actions.report.set.header')
         detail_obj = self.pool.get('ir.actions.report.set.detail')
@@ -84,8 +83,20 @@ class store_parameters_wizard(orm.TransientModel):
                                             'calc_formula': detail.calc_formula,
                                             }, context=context)
 
-        return {'type': 'ir.actions.act_window_close'}
+#        return {'type': 'ir.actions.act_window_close'}
 
+#                'name': _("Auto Match"),
+#                'nodestroy': True,
+        new_context = (context or {}).copy()
+        new_context['parameter_set_id'] = hdr_id
+        return {
+                'view_mode': 'form',
+                'view_type': 'form',
+                'res_model': 'ir.actions.report.promptwizard',
+                'type': 'ir.actions.act_window',
+                'target': 'new',
+                'context': new_context,
+                }
 
 class store_parameters_dets_wizard(orm.TransientModel):
     _name = 'ir.actions.store.params.detail.wiz'

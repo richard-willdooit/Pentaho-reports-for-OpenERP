@@ -190,12 +190,22 @@ class report_prompt_with_parameter_set(orm.TransientModel):
             self._columns[field_name] = fields.char('Formula')
 
     def default_get(self, cr, uid, fields, context=None):
+        if context is None:
+            context = {}
+
         result = super(report_prompt_with_parameter_set, self).default_get(cr, uid, fields, context=context)
         result['has_params'] = self.pool.get('ir.actions.report.set.header').search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context, count=True) > 0
 
         parameters = json.loads(result.get('parameters_dictionary', []))
         for index in range(0, len(parameters)):
             result[parameter_resolve_formula_column_name(parameters, index)] = ''
+
+        if context.get('parameter_set_id'):
+            parameter_set = self.pool.get('ir.actions.report.set.header').browse(cr, uid, context['parameter_set_id'], context=context)
+            if parameter_set.report_action_id != result('report_action_id'):
+                raise orm.except_orm(_('Error'), _('Report parameters do not match service name called.'))
+
+            xxxxxxx
 
         return result
 
@@ -227,9 +237,7 @@ class report_prompt_with_parameter_set(orm.TransientModel):
     def onchange_parameter_set_id(self, cr, uid, ids, parameter_set_id, parameters_dictionary, x2m_unique_id, context=None):
         result = {'value': {}}
 
-        if not parameter_set_id:
-            xxxxx
-        else:
+        if parameter_set_id:
             parameters = json.loads(parameters_dictionary)
             result['value'].update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, parameter_set_id, parameters, x2m_unique_id, context=context))
 
