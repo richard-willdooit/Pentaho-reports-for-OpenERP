@@ -22,6 +22,7 @@ class store_parameters_wizard(orm.TransientModel):
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
                 'parameters_dictionary': fields.text('parameter dictionary'),
                 'detail_ids': fields.one2many('ir.actions.store.params.detail.wiz', 'header_id', 'Parameter Details'),
+                'passing_wizard_id': fields.many2one('ir.actions.report.promptwizard', 'Screen wizard - kept for "Cancel" button')
                 }
 
     def default_get(self, cr, uid, fields, context=None):
@@ -42,6 +43,7 @@ class store_parameters_wizard(orm.TransientModel):
                     'output_type': screen_wizard.output_type,
                     'parameters_dictionary': screen_wizard.parameters_dictionary,
                     'detail_ids': [],
+                    'passing_wizard_id': screen_wizard.id,
                     })
 
         for index in range(0, len(parameters_dictionary)):
@@ -83,20 +85,27 @@ class store_parameters_wizard(orm.TransientModel):
                                             'calc_formula': detail.calc_formula,
                                             }, context=context)
 
-#        return {'type': 'ir.actions.act_window_close'}
-
-#                'name': _("Auto Match"),
-#                'nodestroy': True,
         new_context = (context or {}).copy()
-        new_context['parameter_set_id'] = hdr_id
+        new_context['populate_parameter_set_id'] = hdr_id
         return {
                 'view_mode': 'form',
-                'view_type': 'form',
                 'res_model': 'ir.actions.report.promptwizard',
                 'type': 'ir.actions.act_window',
                 'target': 'new',
                 'context': new_context,
                 }
+
+    def button_cancel(self, cr, uid, ids, context=None):
+        wizard = self.browse(cr, uid, ids[0], context=context)
+        if wizard.passing_wizard_id:
+            return {
+                    'view_mode': 'form',
+                    'res_model': 'ir.actions.report.promptwizard',
+                    'type': 'ir.actions.act_window',
+                    'target': 'new',
+                    'res_id': wizard.passing_wizard_id.id,
+                    }
+        return {'type': 'ir.actions.act_window_close'}
 
 class store_parameters_dets_wizard(orm.TransientModel):
     _name = 'ir.actions.store.params.detail.wiz'

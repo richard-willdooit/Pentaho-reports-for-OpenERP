@@ -200,12 +200,13 @@ class report_prompt_with_parameter_set(orm.TransientModel):
         for index in range(0, len(parameters)):
             result[parameter_resolve_formula_column_name(parameters, index)] = ''
 
-        if context.get('parameter_set_id'):
-            parameter_set = self.pool.get('ir.actions.report.set.header').browse(cr, uid, context['parameter_set_id'], context=context)
-            if parameter_set.report_action_id != result('report_action_id'):
+        if context.get('populate_parameter_set_id'):
+            parameter_set = self.pool.get('ir.actions.report.set.header').browse(cr, uid, context['populate_parameter_set_id'], context=context)
+            if parameter_set.report_action_id.id != result['report_action_id']:
                 raise orm.except_orm(_('Error'), _('Report parameters do not match service name called.'))
 
-            xxxxxxx
+            # set this and let onchange be triggered and initialise correct values
+            result['parameter_set_id'] = context.pop('populate_parameter_set_id')
 
         return result
 
