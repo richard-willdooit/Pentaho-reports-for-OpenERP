@@ -10,7 +10,15 @@
 						<field name='existing_parameters_id' invisible='1'/>
 						<field name='name'/>
 						<field name='output_type'/>
-						<field name='detail_ids' invisible='1'/>
+					</group>
+					<group>
+						<field name='detail_ids' nolabel='1' colspan='4'>
+							<tree string='Values' editable='bottom' create='false' delete='false'>
+								<field name='label' readonly='1'/>
+								<field name='display_value' readonly='1'/>
+								<field name='calc_formula' on_change='onchange_calc_formula(calc_formula)'/>
+							</tree>
+						</field>
 					</group>
 					<footer>
 						<button name="button_store" string="_Store Parameters" type="object" class="oe_highlight"/>

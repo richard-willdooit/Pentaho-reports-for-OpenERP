@@ -302,14 +302,14 @@ class parameter_set_formula(orm.Model):
             operands = self.split_formula(cr, uid, formula_str, known_variables, context=context)
             result['operands'] = operands
 
-            if expected_type == 'TYPE_STRING':
-                self.check_string_formula(cr, uid, operands, expected_type, context=context)
-            if expected_type == 'TYPE_BOOLEAN':
-                self.check_boolean_formula(cr, uid, operands, expected_type, context=context)
-            if expected_type in ('TYPE_INTEGER', 'TYPE_NUMBER'):
-                self.check_numeric_formula(cr, uid, operands, expected_type, context=context)
-            if expected_type in ('TYPE_DATE', 'TYPE_TIME'):
-                self.check_date_formula(cr, uid, operands, expected_type, context=context)
+            if expected_type == TYPE_STRING:
+                self.check_string_formula(cr, uid, operands, context=context)
+            if expected_type == TYPE_BOOLEAN:
+                self.check_boolean_formula(cr, uid, operands, context=context)
+            if expected_type in (TYPE_INTEGER, TYPE_NUMBER):
+                self.check_numeric_formula(cr, uid, operands, context=context)
+            if expected_type in (TYPE_DATE, TYPE_TIME):
+                self.check_date_formula(cr, uid, operands, context=context)
 
             for operand in operands:
                 if operand['error']:
