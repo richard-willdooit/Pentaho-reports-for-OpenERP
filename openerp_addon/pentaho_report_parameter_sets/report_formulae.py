@@ -11,26 +11,17 @@ from openerp.tools.translate import _
 
 from openerp.addons.pentaho_reports.java_oe import *
 
+from report_formulae_definitions import *
+
 PARAM_XXX_FORMULA = 'param_%03i_formula'
 
 FORMULA_OPERATORS = '+-*/'
 QUOTES = "'" + '"'
 DIGITS = '1234567890'
-
-FTYPE_TIMEDELTA = 'tdel'
-FUNCTION_TYPES = OPENERP_DATA_TYPES + [(FTYPE_TIMEDELTA, 'Time Delta')]
-
-FORMULAE = {'today': {'type': TYPE_TIME,
-                      'parameters': [],
-                      'call': 'self.localise(cr, uid, datetime.today(), context=context)',
-                      },
-
-            'hours': {'type': FTYPE_TIMEDELTA,
-                      'parameters': [('hours', (TYPE_INTEGER, TYPE_NUMBER)),
-                                     ],
-                      'call': 'timedelta(%1)',
-                      }
-            }
+PAIRS = {'"': '"',
+         "'": "'",
+         '(': ')',
+         }
 
 VALUE_CONSTANT = 'constant'
 VALUE_VARIABLE = 'variable'
@@ -40,16 +31,24 @@ VALUE_UNKNOWN = 'unknown'
 def parameter_resolve_formula_column_name(parameters, index):
     return PARAM_XXX_FORMULA % index
 
+def find_type_display_name(type):
+    for ft in FUNCTION_TYPES:
+        if ft[0] == type:
+            return ft[1]
+    return 'Unknown'
+
 def search_string_to_next(s, searching, pointer):
-    in_QUOTES = ''
+    in_something = False
     while pointer < len(s):
         pointer += 1
-        if s[pointer-1:pointer] == in_QUOTES:
-            in_QUOTES = ''
-        elif s[pointer-1:pointer] in QUOTES:
-            in_QUOTES = s[pointer-1:pointer]
-        elif not in_QUOTES and s[pointer-1:pointer] in searching:
-            return s[:pointer-1]
+        if in_something:
+            if s[pointer-1:pointer] == PAIRS[in_something]:
+                in_something = False
+        else:
+            if s[pointer-1:pointer] in searching:
+                return s[:pointer-1]
+            if s[pointer-1:pointer] in PAIRS:
+                in_something = s[pointer-1:pointer]
     return s
 
 def discard_firstchar(s):
@@ -58,7 +57,7 @@ def discard_firstchar(s):
 def establish_type(s, known_variables):
     if len(s) >= 2 and s[:1] in QUOTES and s[-1:] == s[:1]:
         return TYPE_STRING, VALUE_CONSTANT
-    if len(s) > 0 and s[:1] in DIGITS:
+    if len(s) > 0 and s[:1] in (DIGITS + '-'):
         try:
             i = int(s)
             return TYPE_INTEGER, VALUE_CONSTANT
@@ -74,7 +73,7 @@ def establish_type(s, known_variables):
 def retrieve_value(s, known_variables):
     if len(s) >= 2 and s[:1] in QUOTES and s[-1:] == s[:1]:
         return s[1:-1]
-    if len(s) > 0 and s[:1] in DIGITS:
+    if len(s) > 0 and s[:1] in (DIGITS + '-'):
         try:
             i = int(s)
             return i
@@ -180,12 +179,12 @@ class parameter_set_formula(orm.Model):
 
         return result
 
-    def operand_type_check(self, cr, uid, operand_dictionary, valid_operators, valid_types, context=None):
+    def operand_type_check(self, cr, uid, operand_dictionary, valid_operators, valid_types, eval_to_type, context=None):
         if not operand_dictionary['error']:
             if not operand_dictionary['returns'] in valid_types:
-                operand_dictionary['error'] = _('Operand of this type not permitted for this type of parameter: %s' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'),))
-            elif not operand_dictionary['operator'] in valid_operators: 
-                operand_dictionary['error'] = _('Operator of this type not permitted for parameter: %s' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'),))
+                operand_dictionary['error'] = _('Operand "%s", type "%s", not permitted for parameter of type "%s".' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'), find_type_display_name(operand_dictionary['returns']), find_type_display_name(eval_to_type)))
+            elif not operand_dictionary['operator'] in valid_operators:
+                operand_dictionary['error'] = _('Operator "%s", at operand "%s", not permitted for parameter of type "%s".' % (operand_dictionary['operator'], operand_dictionary.get('value') or operand_dictionary.get('function_name'), find_type_display_name(eval_to_type)))
 
     def eval_operand(self, cr, uid, operand_dictionary, known_variables, context=None):
         if operand_dictionary.get('value'):
@@ -205,13 +204,13 @@ class parameter_set_formula(orm.Model):
             eval_string = eval_string.replace('%%%s' % (index+1,), value)
         return operand_dictionary['operator'], operand_dictionary['returns'], eval(eval_string)
 
-    def check_string_formula(self, cr, uid, operands, context=None):
+    def check_string_formula(self, cr, uid, expected_type, operands, context=None):
         # every parameter must be a '+'
         # every standard parameter type can be accepted as they will be converted to strings, and appended...
         for operand_dictionary in operands:
-            self.operand_type_check(cr, uid, operand_dictionary, '+', (TYPE_STRING, TYPE_BOOLEAN, TYPE_INTEGER, TYPE_NUMBER, TYPE_DATE, TYPE_TIME), context=context)
+            self.operand_type_check(cr, uid, operand_dictionary, '+', (TYPE_STRING, TYPE_BOOLEAN, TYPE_INTEGER, TYPE_NUMBER, TYPE_DATE, TYPE_TIME), expected_type, context=context)
 
-    def eval_string_formula(self, cr, uid, operands, known_variables, expected_type, context=None):
+    def eval_string_formula(self, cr, uid, expected_type, operands, known_variables, context=None):
         def to_string(value, op_type):
             return op_type in (TYPE_STRING) and value or str(value)
 
@@ -221,15 +220,15 @@ class parameter_set_formula(orm.Model):
             result_string += to_string(op_result, op_type)
         return result_string
 
-    def check_boolean_formula(self, cr, uid, operands, context=None):
+    def check_boolean_formula(self, cr, uid, expected_type, operands, context=None):
         # only 1 parameter allowed
         # must be a '+'
         # every standard parameter type can be accepted as they will be converted to booleans using standard Python boolean rules
-        self.operand_type_check(cr, uid, operands[0], '+', (TYPE_STRING, TYPE_BOOLEAN, TYPE_INTEGER, TYPE_NUMBER, TYPE_DATE, TYPE_TIME), context=context)
+        self.operand_type_check(cr, uid, operands[0], '+', (TYPE_STRING, TYPE_BOOLEAN, TYPE_INTEGER, TYPE_NUMBER, TYPE_DATE, TYPE_TIME), expected_type, context=context)
         for operand_dictionary in operands[1:]:
             operand_dictionary['error'] = _('Excess operands not permitted for for this type of parameter: %s' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'),))
 
-    def eval_boolean_formula(self, cr, uid, operands, known_variables, expected_type, context=None):
+    def eval_boolean_formula(self, cr, uid, expected_type, operands, known_variables, context=None):
         def to_boolean(value, op_type):
             return op_type in (TYPE_BOOLEAN) and value or bool(value)
 
@@ -237,13 +236,13 @@ class parameter_set_formula(orm.Model):
         result_bool += to_boolean(op_result, op_type)
         return result_bool
 
-    def check_numeric_formula(self, cr, uid, operands, context=None):
+    def check_numeric_formula(self, cr, uid, expected_type, operands, context=None):
         # every parameter type is fine
         # only integers and numerics can be accepted
         for operand_dictionary in operands:
-            self.operand_type_check(cr, uid, operand_dictionary, '+-*/', (TYPE_INTEGER, TYPE_NUMBER), context=context)
+            self.operand_type_check(cr, uid, operand_dictionary, '+-*/', (TYPE_INTEGER, TYPE_NUMBER), expected_type, context=context)
 
-    def eval_numeric_formula(self, cr, uid, operands, known_variables, expected_type, context=None):
+    def eval_numeric_formula(self, cr, uid, expected_type, operands, known_variables, context=None):
         # all parameters have been validated as integers or numbers already, so this is redundant.
         def to_number(value, op_type):
             return op_type in (TYPE_INTEGER, TYPE_NUMBER) and value or float(value)
@@ -254,16 +253,14 @@ class parameter_set_formula(orm.Model):
             result_num = eval('result_num %s to_number(op_result, op_type)' % (op_op,))
         return expected_type == TYPE_INTEGER and int(result_num) or result_num
 
-    def check_date_formula(self, cr, uid, operands, context=None):
+    def check_date_formula(self, cr, uid, expected_type, operands, context=None):
         # first parameter must be a date or datetime and a '+'
-        self.operand_type_check(cr, uid, operands[0], '+', (TYPE_DATE, TYPE_TIME), context=context)
+        self.operand_type_check(cr, uid, operands[0], '+', (TYPE_DATE, TYPE_TIME), expected_type, context=context)
         # others must be all time_deltas
         for operand_dictionary in operands[1:]:
-            self.operand_type_check(cr, uid, operand_dictionary, '+-', (FTYPE_TIMEDELTA), context=context)
+            self.operand_type_check(cr, uid, operand_dictionary, '+-', (FTYPE_TIMEDELTA), expected_type, context=context)
 
-    def eval_date_formula(self, cr, uid, operands, known_variables, expected_type, context=None):
-        import ipdb
-        ipbd.set_trace()
+    def eval_date_formula(self, cr, uid, expected_type, operands, known_variables, context=None):
         # all parameters have been validated as correct type, so these are redundant - if it errors, then we have a coding problem in the formula checks...
         def to_date(value, op_type):
             return op_type in (TYPE_DATE, TYPE_TIME) and value or datetime.now()
@@ -278,8 +275,8 @@ class parameter_set_formula(orm.Model):
         return expected_type == TYPE_DATE and result_dtm.strftime(DEFAULT_SERVER_DATE_FORMAT) or result_dtm.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
 
     def localise(self, cr, uid, value, context=None):
-        if context is None:
-            context = {}
+        if context and context.get('tz'):
+            value = pytz.timezone('UTC').localize(value, is_dst=False).astimezone(pytz.timezone(context['tz']))
         return value
 
     def validate_formula(self, cr, uid, formula_str, expected_type, known_variables, context=None):
@@ -303,13 +300,13 @@ class parameter_set_formula(orm.Model):
             result['operands'] = operands
 
             if expected_type == TYPE_STRING:
-                self.check_string_formula(cr, uid, operands, context=context)
+                self.check_string_formula(cr, uid, expected_type, operands, context=context)
             if expected_type == TYPE_BOOLEAN:
-                self.check_boolean_formula(cr, uid, operands, context=context)
+                self.check_boolean_formula(cr, uid, expected_type, operands, context=context)
             if expected_type in (TYPE_INTEGER, TYPE_NUMBER):
-                self.check_numeric_formula(cr, uid, operands, context=context)
+                self.check_numeric_formula(cr, uid, expected_type, operands, context=context)
             if expected_type in (TYPE_DATE, TYPE_TIME):
-                self.check_date_formula(cr, uid, operands, context=context)
+                self.check_date_formula(cr, uid, expected_type, operands, context=context)
 
             for operand in operands:
                 if operand['error']:
@@ -329,11 +326,11 @@ class parameter_set_formula(orm.Model):
 
     def evaluate_formula(self, cr, uid, formula_dict, expected_type, known_variables, context=None):
         if expected_type == TYPE_STRING:
-            return self.eval_string_formula(cr, uid, formula_dict['operands'], known_variables, expected_type, context=context)
+            return self.eval_string_formula(cr, uid, expected_type, formula_dict['operands'], known_variables, context=context)
         if expected_type == TYPE_BOOLEAN:
-            return self.eval_boolean_formula(cr, uid, formula_dict['operands'], known_variables, expected_type, context=context)
+            return self.eval_boolean_formula(cr, uid, expected_type, formula_dict['operands'], known_variables, context=context)
         if expected_type in (TYPE_INTEGER, TYPE_NUMBER):
-            return self.eval_numeric_formula(cr, uid, formula_dict['operands'], known_variables, expected_type, context=context)
+            return self.eval_numeric_formula(cr, uid, expected_type, formula_dict['operands'], known_variables, context=context)
         if expected_type in (TYPE_DATE, TYPE_TIME):
-            return self.eval_numeric_formula(cr, uid, formula_dict['operands'], known_variables, expected_type, context=context)
+            return self.eval_date_formula(cr, uid, expected_type, formula_dict['operands'], known_variables, context=context)
         return None

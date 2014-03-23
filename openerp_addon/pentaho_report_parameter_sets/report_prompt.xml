@@ -12,7 +12,7 @@
 				<field name='report_action_id' position='after'>
 					<field name='has_params' invisible='1'/>
 					<field name='parameter_set_id' domain="[('report_action_id', '=', report_action_id)]" attrs="{'invisible': [('has_params', '!=', True)]}"
-						on_change='onchange_parameter_set_id(parameter_set_id, parameters_dictionary, x2m_unique_id)'/>
+						on_change='onchange_parameter_set_id(parameter_set_id, parameters_dictionary, x2m_unique_id, context)'/>
 				</field>
 			</field>
 		</record>

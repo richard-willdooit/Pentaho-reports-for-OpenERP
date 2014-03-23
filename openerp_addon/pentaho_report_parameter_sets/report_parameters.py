@@ -237,9 +237,7 @@ class report_prompt_with_parameter_set(orm.TransientModel):
 
     def onchange_parameter_set_id(self, cr, uid, ids, parameter_set_id, parameters_dictionary, x2m_unique_id, context=None):
         result = {'value': {}}
-
         if parameter_set_id:
             parameters = json.loads(parameters_dictionary)
             result['value'].update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, parameter_set_id, parameters, x2m_unique_id, context=context))
-
         return result

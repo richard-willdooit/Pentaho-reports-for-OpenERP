@@ -122,15 +122,17 @@ class store_parameters_dets_wizard(orm.TransientModel):
 
     _order = 'counter'
 
-    def onchange_calc_formula(self, cr, uid, ids, calc_formula, context=None):
+    def onchange_calc_formula(self, cr, uid, ids, calc_formula, expected_type, parameters_dictionary, context=None):
         result = {}
         if calc_formula:
-            formula_obj = self.pool.get('ir.actions.report.set.formula')
-
-            expected_type = TYPE_STRING
+            parameters = json.loads(parameters_dictionary)
             known_variables = {}
+            for index in range(0, len(parameters)):
+                known_variables[parameters[index]['variable']] = {'type': parameters[index]['type'],
+                                                                  'calculated': False,
+                                                                  }
 
-            parsed_formula = formula_obj.validate_formula(cr, uid, calc_formula, expected_type, known_variables, context=context)
+            parsed_formula = self.pool.get('ir.actions.report.set.formula').validate_formula(cr, uid, calc_formula, expected_type, known_variables, context=context)
             if parsed_formula.get('error'):
                 result['warning'] = {'title': _('Formula Validation'),
                                      'message': parsed_formula['error'],
