@@ -100,6 +100,38 @@ class parameter_set_formula(orm.Model):
                 }
 
 
+    def check_formula_arguments(self, cr, uid, definition_args, passed_args, known_variables, function_name, context=None):
+
+        def find_last_positional(definition_args):
+            for x in range(len(definition_args), 0, -1):
+                if not definition_args[x-1].get('name'):
+                    return x-1
+            return 0
+
+        for index in range(0, len(definition_args)):
+            if not definition_args[index].get('name'):
+                if len(passed_args) < index+1 or passed_args[index][0]:
+                    return _('Not enough positional arguments for formula "%s": %s required') % (function_name, find_last_positional(definition_args)+1)
+
+        for index in range(0, len(passed_args)):
+            if not passed_args[index][0]:
+                if len(definition_args) < index+1 or definition_args[index].get('name'):
+                    return _('Too many positional arguments for formula "%s": %s required') % (function_name, find_last_positional(definition_args)+1)
+                compare_index = index
+            else:
+                for compare_index in range(0, len(definition_args)):
+                    if definition_args[compare_index].get('name') == passed_args[index][0]:
+                        break
+                else:
+                    return _('Unknown named argument for formula "%s": %s') % (function_name, passed_args[index][0])
+
+            value_gives_type, value_is_type = establish_type(passed_args[index][1], known_variables)
+            if value_is_type == VALUE_UNKNOWN:
+                return _('Argument value unknown for formula "%s": %s') % (function_name, passed_args[index][1])
+            if not value_gives_type in definition_args[compare_index]['types']:
+                return _('Argument type mismatch for formula "%s" %s: %s is %s') % (function_name, passed_args[index][0] and ('"%s"' % (passed_args[index][0],)) or ('argument %s' % (index+1,)), passed_args[index][1], find_type_display_name(value_gives_type))
+        return None
+
     def split_formula(self, cr, uid, formula_str, known_variables, context=None):
         """
         returns a list of operands.
@@ -110,7 +142,9 @@ class parameter_set_formula(orm.Model):
                              !!! undefined if it is a function
             returns:         type that this operand returns
             function_name:
-            function_params: list of quoted strings, numbers, or variables
+            function_args: list of tuples
+                                (name or None, value)
+                                where value is a quoted string, number, or variable
         """
         result = []
 
@@ -118,7 +152,7 @@ class parameter_set_formula(orm.Model):
         formula_str = formula_str.replace(operand,'',1).strip()
 
         operand_dictionary = {'operator': operand[0:1],
-                              'error': False,
+                              'error': None,
                               }
         operand = discard_firstchar(operand)
         if operand:
@@ -136,31 +170,22 @@ class parameter_set_formula(orm.Model):
                 else:
                     operand_dictionary['function_name'] = function_name
                     operand_dictionary['returns'] = FORMULAE.get(function_name,{}).get('type', None)
-                    operand_dictionary['function_params'] = []
+                    operand_dictionary['function_args'] = []
                     operand = discard_firstchar(operand)
                     while operand and operand[0:1] != ')':
-                        if len(operand_dictionary['function_params']) > 0:
+                        if len(operand_dictionary['function_args']) > 0:
                             # don't strip first character for first parameter, after this, the first character is the ','
                             operand = discard_firstchar(operand)
                         function_param = search_string_to_next(operand, ',)', 0)
                         operand = operand.replace(function_param,'',1).strip()
-                        operand_dictionary['function_params'].append(function_param)
 
-                    if len(operand_dictionary['function_params']) != len(FORMULAE.get(function_name, {}).get('parameters', [])):
-                        operand_dictionary['error'] = _('Parameter count mismatch for formula %s: Expecting %s but got %s') % (function_name,
-                                                                                                                               len(FORMULAE.get(function_name, {}).get('parameters', [])),
-                                                                                                                               len(operand_dictionary['function_params']),
-                                                                                                                               )
-                    else:
-                        for index in range(0, len(operand_dictionary['function_params'])):
-                            function_param = operand_dictionary['function_params'][index]
-                            value_gives_type, value_is_type = establish_type(function_param, known_variables)
-                            if value_is_type == VALUE_UNKNOWN:
-                                operand_dictionary['error'] = _('Parameter value unknown for formula "%s": %s') % (function_name, function_param)
-                                break
-                            if not value_gives_type in FORMULAE.get(function_name, {}).get('parameters', [])[index][1]:
-                                operand_dictionary['error'] = _('Parameter type mismatch for formula "%s" parameter %s: %s') % (function_name, index+1, function_param)
-                                break
+                        param_split = search_string_to_next(function_param, '=', 0)
+                        function_param = function_param.replace(param_split,'',1).strip()
+                        if function_param:
+                            function_param = discard_firstchar(function_param)
+                            operand_dictionary['function_args'].append((param_split, function_param))
+                        else:
+                            operand_dictionary['function_args'].append((None, param_split.strip()))
 
                     if operand:
                         # remove ')'
@@ -168,9 +193,15 @@ class parameter_set_formula(orm.Model):
                         if operand:
                             operand_dictionary['error'] = _('Unable to interpret beyond formula "%s": %s') % (function_name, operand)
                     else:
-                        operand_dictionary['error'] = _('Formula not closed: %s') % (function_name)
+                        operand_dictionary['error'] = _('Formula not closed: "%s"') % (function_name,)
 
-        if not operand_dictionary['returns']:
+                    if not operand_dictionary.get('error'):
+                        if function_name in FORMULAE:
+                            operand_dictionary['error'] = self.check_formula_arguments(cr, uid, FORMULAE[function_name]['arguments'], operand_dictionary['function_args'], known_variables, function_name, context=context)
+                        else:
+                            operand_dictionary['error'] = _('Formula undefined or restricted: "%s"') % (function_name,)
+
+        if not operand_dictionary['returns'] and not operand_dictionary.get('error'):
             operand_dictionary['error'] = _('Operand unknown or badly formed: %s' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'),))
 
         result.append(operand_dictionary)
@@ -187,26 +218,45 @@ class parameter_set_formula(orm.Model):
                 operand_dictionary['error'] = _('Operator "%s", at operand "%s", not permitted for parameter of type "%s".' % (operand_dictionary['operator'], operand_dictionary.get('value') or operand_dictionary.get('function_name'), find_type_display_name(eval_to_type)))
 
     def eval_operand(self, cr, uid, operand_dictionary, known_variables, context=None):
+
         if operand_dictionary.get('value'):
             return operand_dictionary['operator'], operand_dictionary['returns'], retrieve_value(operand_dictionary['value'], known_variables)
 
         formula_definition = FORMULAE[operand_dictionary['function_name']]
-
+        replacements = dict.fromkeys([arg['insert_at'] for arg in formula_definition['arguments']], '')
         variables = {}
-        eval_string = formula_definition['call']
-        for index in range(0, len(formula_definition['parameters'])):
-            variables[index] = retrieve_value(operand_dictionary['function_params'][index], known_variables)
+
+        for index in range(0, len(operand_dictionary['function_args'])):
+            passed_arg = operand_dictionary['function_args'][index]
+            if not passed_arg[0]:
+                definition_arg = formula_definition['arguments'][index]
+            else:
+                for definition_arg in formula_definition['arguments']:
+                    if definition_arg.get('name') == passed_arg[0]:
+                        break
+                else:
+                    # should NEVER get here as it should have already validated arguments match
+                    raise orm.except_orm(_('Error'), _('Unexpected argument error.'))
+
+            variables[index] = retrieve_value(passed_arg[1], known_variables)
             value = 'variables[%s]' % (index,)
+            replacement_so_far = False
 
-            if formula_definition['parameters'][index][0]:
-                value = formula_definition['parameters'][index][0] + '=' + value
+            if definition_arg.get('insert_as') or definition_arg.get('name'):
+                value = '%s=%s' % (definition_arg.get('insert_as') or definition_arg.get('name'), value)
+                replacement_so_far = replacements[definition_arg['insert_at']]
 
-            eval_string = eval_string.replace('%%%s' % (index+1,), value)
+            replacements[definition_arg['insert_at']] = '%s%s' % (replacement_so_far and '%s, ' % (replacement_so_far,) or '', value)
+
+        eval_string = formula_definition['call']
+        for r_key in replacements:
+            eval_string = eval_string.replace('%%%s' % (r_key, ), replacements[r_key])
+
         return operand_dictionary['operator'], operand_dictionary['returns'], eval(eval_string)
 
     def check_string_formula(self, cr, uid, expected_type, operands, context=None):
-        # every parameter must be a '+'
-        # every standard parameter type can be accepted as they will be converted to strings, and appended...
+        # every operator must be a '+'
+        # every standard operand type can be accepted as they will be converted to strings, and appended...
         for operand_dictionary in operands:
             self.operand_type_check(cr, uid, operand_dictionary, '+', (TYPE_STRING, TYPE_BOOLEAN, TYPE_INTEGER, TYPE_NUMBER, TYPE_DATE, TYPE_TIME), expected_type, context=context)
 
@@ -221,9 +271,9 @@ class parameter_set_formula(orm.Model):
         return result_string
 
     def check_boolean_formula(self, cr, uid, expected_type, operands, context=None):
-        # only 1 parameter allowed
+        # only 1 operand allowed
         # must be a '+'
-        # every standard parameter type can be accepted as they will be converted to booleans using standard Python boolean rules
+        # every standard operand type can be accepted as they will be converted to booleans using standard Python boolean rules
         self.operand_type_check(cr, uid, operands[0], '+', (TYPE_STRING, TYPE_BOOLEAN, TYPE_INTEGER, TYPE_NUMBER, TYPE_DATE, TYPE_TIME), expected_type, context=context)
         for operand_dictionary in operands[1:]:
             operand_dictionary['error'] = _('Excess operands not permitted for for this type of parameter: %s' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'),))
@@ -237,13 +287,13 @@ class parameter_set_formula(orm.Model):
         return result_bool
 
     def check_numeric_formula(self, cr, uid, expected_type, operands, context=None):
-        # every parameter type is fine
+        # every operator type is fine
         # only integers and numerics can be accepted
         for operand_dictionary in operands:
             self.operand_type_check(cr, uid, operand_dictionary, '+-*/', (TYPE_INTEGER, TYPE_NUMBER), expected_type, context=context)
 
     def eval_numeric_formula(self, cr, uid, expected_type, operands, known_variables, context=None):
-        # all parameters have been validated as integers or numbers already, so this is redundant.
+        # all operands have been validated as integers or numbers already, so this is redundant.
         def to_number(value, op_type):
             return op_type in (TYPE_INTEGER, TYPE_NUMBER) and value or float(value)
 
@@ -254,14 +304,14 @@ class parameter_set_formula(orm.Model):
         return expected_type == TYPE_INTEGER and int(result_num) or result_num
 
     def check_date_formula(self, cr, uid, expected_type, operands, context=None):
-        # first parameter must be a date or datetime and a '+'
+        # first operand must be a date or datetime and a '+' operator
         self.operand_type_check(cr, uid, operands[0], '+', (TYPE_DATE, TYPE_TIME), expected_type, context=context)
         # others must be all time_deltas
         for operand_dictionary in operands[1:]:
             self.operand_type_check(cr, uid, operand_dictionary, '+-', (FTYPE_TIMEDELTA), expected_type, context=context)
 
     def eval_date_formula(self, cr, uid, expected_type, operands, known_variables, context=None):
-        # all parameters have been validated as correct type, so these are redundant - if it errors, then we have a coding problem in the formula checks...
+        # all operands have been validated as correct type, so these are redundant - if it errors, then we have a coding problem in the formula checks...
         def to_date(value, op_type):
             return op_type in (TYPE_DATE, TYPE_TIME) and value or datetime.now()
         def to_timedelta(value, op_type):
@@ -274,17 +324,12 @@ class parameter_set_formula(orm.Model):
             result_dtm = eval('result_dtm %s to_timedelta(op_result, op_type)' % (op_op,))
         return expected_type == TYPE_DATE and result_dtm.strftime(DEFAULT_SERVER_DATE_FORMAT) or result_dtm.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
 
-    def localise(self, cr, uid, value, context=None):
-        if context and context.get('tz'):
-            value = pytz.timezone('UTC').localize(value, is_dst=False).astimezone(pytz.timezone(context['tz']))
-        return value
-
     def validate_formula(self, cr, uid, formula_str, expected_type, known_variables, context=None):
         """
         returns a dictionary
             error:            string of one error in formula
             operands:         list of operand dictionaries
-            dependent_params: list of variables needed for this formula to calculate
+            dependent_values: list of variables needed for this formula to calculate
         """
         result = {'error': False}
 
@@ -313,14 +358,18 @@ class parameter_set_formula(orm.Model):
                     result['error'] = operand['error']
                     break
 
-            if not result['error']:
-                result['dependent_values'] = []
+            else:
+                dependent_values = set()
                 for operand_dictionary in operands:
-                    if operand_dictionary.get('value') in known_variables:
-                        result['dependent_values'].append(operand_dictionary['value'])
-                    for function_param in operand_dictionary.get('function_params',[]):
-                        if function_param in known_variables:
-                            result['dependent_values'].append(function_param)
+                    if operand_dictionary.get('value'):
+                        value_gives_type, value_is_type = establish_type(operand_dictionary['value'], known_variables)
+                        if value_is_type == VALUE_VARIABLE:
+                            dependent_values.add(operand_dictionary['value'])
+                    for function_arg in operand_dictionary.get('function_args',[]):
+                        value_gives_type, value_is_type = establish_type(function_arg[1], known_variables)
+                        if value_is_type == VALUE_VARIABLE:
+                            dependent_values.add(function_arg[1])
+                result['dependent_values'] = list(dependent_values)
 
         return result
 
@@ -334,3 +383,8 @@ class parameter_set_formula(orm.Model):
         if expected_type in (TYPE_DATE, TYPE_TIME):
             return self.eval_date_formula(cr, uid, expected_type, formula_dict['operands'], known_variables, context=context)
         return None
+
+    def localise(self, cr, uid, value, context=None):
+        if context and context.get('tz'):
+            value = pytz.timezone('UTC').localize(value, is_dst=False).astimezone(pytz.timezone(context['tz']))
+        return value

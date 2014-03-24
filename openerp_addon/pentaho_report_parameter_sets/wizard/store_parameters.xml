@@ -24,8 +24,8 @@
 					</group>
 					<footer>
 						<button name="button_store" string="_Store Parameters" type="object" class="oe_highlight"/>
-						or
-						<button name="button_cancel" string="_Cancel" type="object" class="oe_link"/>
+						<!-- 'or' should be static text, but bug in "wizard on wizard" footers renders this incorrectly, so put 'or' in button -->
+						<button name="button_cancel" string="or _Cancel" type="object" class="oe_link"/>
 					</footer>
 				</form>
 			</field>
