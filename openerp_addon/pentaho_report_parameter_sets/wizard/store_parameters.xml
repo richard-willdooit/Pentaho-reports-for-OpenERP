@@ -23,7 +23,10 @@
 						</field>
 					</group>
 					<footer>
-						<button name="button_store" string="_Store Parameters" type="object" class="oe_highlight"/>
+						<button name="button_store_new" string="_Store" type="object" class="oe_highlight" attrs="{'invisible': [('existing_parameters_id', '!=', False)]}"/>
+						<button name="button_store_replace" string="_Store (Replace)" type="object" class="oe_highlight" attrs="{'invisible': [('existing_parameters_id', '=', False)]}"/>
+						<button name="button_store_new" string="_Store (New Copy)" type="object" class="oe_highlight" attrs="{'invisible': [('existing_parameters_id', '=', False)]}"/>
+						<button name="button_delete" string="_Delete" type="object" attrs="{'invisible': [('existing_parameters_id', '=', False)]}" confirm="Are you sure you want to remove this record?"/>
 						<!-- 'or' should be static text, but bug in "wizard on wizard" footers renders this incorrectly, so put 'or' in button -->
 						<button name="button_cancel" string="or _Cancel" type="object" class="oe_link"/>
 					</footer>

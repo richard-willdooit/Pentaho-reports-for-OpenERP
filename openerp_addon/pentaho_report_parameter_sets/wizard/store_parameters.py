@@ -16,8 +16,8 @@ class store_parameters_wizard(orm.TransientModel):
     _description = "Store Pentaho Parameters Wizard"
 
     _columns = {
-                'existing_parameters_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set'),
-                'name': fields.char('Parameter Set Description', size=64),
+                'existing_parameters_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', ondelete='set null'),
+                'name': fields.char('Parameter Set Description', size=64, required=True),
                 'report_action_id': fields.many2one('ir.actions.report.xml', 'Report Name', readonly=True),
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
                 'parameters_dictionary': fields.text('parameter dictionary'),
@@ -57,11 +57,22 @@ class store_parameters_wizard(orm.TransientModel):
 
         return res
 
-    def button_store(self, cr, uid, ids, context=None):
+    def button_store_new(self, cr, uid, ids, context=None):
+        return self.button_store(cr, uid, ids, replace=False, context=context)
+
+    def button_store_replace(self, cr, uid, ids, context=None):
+        return self.button_store(cr, uid, ids, replace=True, context=context)
+
+    def button_store(self, cr, uid, ids, replace=True, context=None):
         header_obj = self.pool.get('ir.actions.report.set.header')
         detail_obj = self.pool.get('ir.actions.report.set.detail')
 
         for wizard in self.browse(cr, uid, ids, context=context):
+            clash_ids = header_obj.search(cr, uid, [('name', '=', wizard.name)], context=context)
+            if clash_ids and (not replace or len(clash_ids) > 1 or clash_ids[0] != wizard.existing_parameters_id):
+                # We enforce this so that we can uniquely identify a parameter set when calling from the report scheduler.
+                raise orm.except_orm(_('Error'), _('Parameters must have a unique name across all reports.'))
+
             vals = {'name': wizard.name,
                     'report_action_id': wizard.report_action_id.id,
                     'output_type': wizard.output_type,
@@ -69,7 +80,7 @@ class store_parameters_wizard(orm.TransientModel):
                     'detail_ids': [(5,)],
                     }
 
-            if wizard.existing_parameters_id:
+            if replace and wizard.existing_parameters_id:
                 header_obj.write(cr, uid, [wizard.existing_parameters_id.id], vals, context=context)
                 hdr_id = wizard.existing_parameters_id.id
             else:
@@ -94,6 +105,13 @@ class store_parameters_wizard(orm.TransientModel):
                 'target': 'new',
                 'context': new_context,
                 }
+
+    def button_delete(self, cr, uid, ids, context=None):
+        header_obj = self.pool.get('ir.actions.report.set.header')
+        for wizard in self.browse(cr, uid, ids, context=context):
+            if wizard.existing_parameters_id:
+                header_obj.unlink(cr, uid, [wizard.existing_parameters_id.id], context=context)
+        return self.button_cancel(cr, uid, ids, context=context)
 
     def button_cancel(self, cr, uid, ids, context=None):
         wizard = self.browse(cr, uid, ids[0], context=context)

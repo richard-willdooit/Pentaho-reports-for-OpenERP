@@ -177,7 +177,7 @@ class report_prompt_with_parameter_set(orm.TransientModel):
 
     _columns = {
                 'has_params': fields.boolean('Has Parameters...'),
-                'parameter_set_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set'),
+                'parameter_set_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', ondelete='set null'),
                 }
 
     def __init__(self, pool, cr):
