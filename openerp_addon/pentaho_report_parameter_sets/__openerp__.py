@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-# v7.0 - Beta.
+# v7.0 - Release
 {
     "name": "Pentaho Report Parameter Saving",
     "description": """
