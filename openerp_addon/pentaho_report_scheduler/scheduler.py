@@ -107,26 +107,31 @@ class ReportSchedulerLines(orm.Model):
     _name = "ir.actions.report.scheduler.line"
     _description = "Report Scheduler Lines"
 
+    def check_pentaho_installed(self, cr, uid, context=None):
+        return self.pool.get('ir.module.module').search(cr, uid,
+                                                        [('name', '=', 'pentaho_reports'), 
+                                                         ('state', 'in', ['installed', 'to upgrade', 'to remove'])
+                                                         ], count=True, context=context
+                                                        ) > 0
+
+    def _check_pentaho_values(self, cr, uid, report, pentaho_installed, context=None):
+        if pentaho_installed and report.is_pentaho_report:
+            result = {'is_pentaho_report': True,
+                      'model': report.pentaho_report_model_id.name,
+                      'report_type': report.pentaho_report_output_type,
+                      }
+        else:
+            result = {'is_pentaho_report': False,
+                      'model': report.model,
+                      'report_type': report.report_type,
+                      }
+        return result
 
     def _action_values(self, cr, uid, ids, name, args, context=None):
-        pentaho_installed = self.pool.get('ir.module.module').search(cr, uid,
-                                                                     [('name', '=', 'pentaho_reports'), 
-                                                                      ('state', 'in', ['installed', 'to upgrade', 'to remove'])
-                                                                      ], count=True, context=context
-                                                                     ) > 0
-
+        pentaho_installed = self.check_pentaho_installed(cr, uid, context=context)
         res = {}
         for line in self.browse(cr, uid, ids, context=context):
-            if pentaho_installed and line.report_id.is_pentaho_report:
-                res[line.id] = {'is_pentaho_report': True,
-                                'model': line.report_id.pentaho_report_model_id.name,
-                                'report_type': line.report_id.pentaho_report_output_type,
-                                }
-            else:
-                res[line.id] = {'is_pentaho_report': False,
-                                'model': line.report_id.model,
-                                'report_type': line.report_id.report_type,
-                                }
+            res[line.id] = self._check_pentaho_values(cr, uid, line.report_id, pentaho_installed, context=context)
         return res
 
     _columns = {'scheduler_id': fields.many2one('ir.actions.report.scheduler', 'Scheduler'),
@@ -139,3 +144,11 @@ class ReportSchedulerLines(orm.Model):
                 }
 
     _order='sequence'
+
+    def onchange_report(self, cr, uid, ids, report_id, context=None):
+        result = {}
+        if report_id:
+            report = self.pool.get('ir.actions.report.xml').browse(cr, uid, report_id, context=context)
+            result['value'] = self._check_pentaho_values(cr, uid, report, self.check_pentaho_installed(cr, uid, context=context), context=context)
+            result['value']['type'] = report.type
+        return result

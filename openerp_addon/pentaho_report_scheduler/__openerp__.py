@@ -4,16 +4,18 @@
     'name': 'Report Scheduler',
     "version": "0.1",
     "author": "WillowIT Pty Ltd",
-    'website': 'http://www.willowIT.com.au',
+    'website': 'http://www.willowit.com.au',
     "category": "Reporting subsystems",
     'summary':'Report Scheduler',
     'images': [],
-    'depends': [],
+    'depends': ['base'],
     'description': """
 Report Email / Message Scheduler
 ================================
-This module provides a simple scheduler running daily reports. The reports may not accept any parameters, or must
-run using a defined parameter set with pentaho_report_parameter_sets installed.
+This module provides a simple scheduler running daily reports. The reports may not accept any parameters.
+
+The module "Report Scheduler Parameters" (pentaho_report_scheduler_params) module extends this module and allows
+Pentaho reports to be scheduled with defined parameter sets.
 
 Chosen reports can be either emailed to users or sent to their OpenERP message box as a notification, or both.
 

@@ -23,7 +23,7 @@
 								<field name="line_ids" nolabel="1" colspan="4">
 									<tree string='Reports' editable='bottom'>
 										<field name='sequence' widget='handle'/>
-										<field name='report_id'/>
+										<field name='report_id' on_change ='onchange_report(report_id)'/>
 										<field name='is_pentaho_report'/>
 										<field name='model'/>
 										<field name='type'/>
