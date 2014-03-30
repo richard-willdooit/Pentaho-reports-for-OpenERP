@@ -17,40 +17,6 @@ from openerp.addons.pentaho_reports.core import VALID_OUTPUT_TYPES
 from report_formulae import *
 
 
-def conv_to_number(s):
-    if type(s) in (str, unicode) and s == "":
-        s = 0
-    try:
-        f = float(s)
-        return f
-    except ValueError:
-        return 0
-
-def conv_to_date(s):
-    result = None
-    if s:
-        try:
-            result = datetime.strptime(s, DEFAULT_SERVER_DATETIME_FORMAT).date()
-        except ValueError:
-            try:
-                result = parser.parse(s, fuzzy=True, dayfirst=True).date()
-            except ValueError:
-                result = None
-    return result and result.strftime(DEFAULT_SERVER_DATE_FORMAT)
-
-def conv_to_datetime(s):
-    result = None
-    if s:
-        try:
-            result = datetime.strptime(s, DEFAULT_SERVER_DATETIME_FORMAT)
-        except ValueError:
-            try:
-                result = parser.parse(s, fuzzy=True, dayfirst=True)
-            except ValueError:
-                result = None
-    return result and result.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
-
-
 class parameter_set_header(orm.Model):
     _name = 'ir.actions.report.set.header'
     _description = 'Pentaho Report Parameter Set Header'
@@ -65,8 +31,6 @@ class parameter_set_header(orm.Model):
 
     def parameters_to_dictionary(self, cr, uid, id, parameters, x2m_unique_id, context=None):
         detail_obj = self.pool.get('ir.actions.report.set.detail')
-        wiz_obj = self.pool.get('ir.actions.report.promptwizard')
-
         formula_obj = self.pool.get('ir.actions.report.set.formula')
 
         result = {}
@@ -112,11 +76,7 @@ class parameter_set_header(orm.Model):
                                 if calculate_formula_this_time:
                                     result[parameter_resolve_column_name(parameters, index)] = formula_obj.evaluate_formula(cr, uid, formula, expected_type, known_variables, context=context)
                                 else:
-                                    if parameter_can_2m(parameters, index):
-                                        value = detail.display_value
-                                    else:
-                                        value = detail_obj.validate_display_value(cr, uid, detail, expected_type, context=context)
-                                    result[parameter_resolve_column_name(parameters, index)] = wiz_obj.encode_wizard_value(cr, uid, parameters, index, x2m_unique_id, value, enc_json=True, context=context)
+                                    result[parameter_resolve_column_name(parameters, index)] = detail_obj.display_value_to_wizard(cr, uid, detail.display_value, parameters, index, x2m_unique_id, context=context) 
 
                                 result[parameter_resolve_formula_column_name(parameters, index)] = detail.calc_formula
 
@@ -154,21 +114,14 @@ class parameter_set_detail(orm.Model):
 
     _order = 'counter'
 
-    def validate_display_value(self, cr, uid, detail, expected_type, context=None):
-        result = False
-        # Be forgiving as possible here for possible parameter type changes
-        if expected_type == TYPE_STRING:
-            result = detail.display_value
-        if expected_type == TYPE_BOOLEAN:
-            result = detail.display_value and detail.display_value.lower() in ('true', 't', '1', 'yes', 'y')
-        if expected_type == TYPE_INTEGER:
-            result = int(conv_to_number(detail.display_value))
-        if expected_type == TYPE_NUMBER:
-            result = conv_to_number(detail.display_value)
-        if expected_type == TYPE_DATE:
-            result = conv_to_date(detail.display_value)
-        if expected_type == TYPE_TIME:
-            result = conv_to_datetime(detail.display_value)
+    def wizard_value_to_display(self, cr, uid, wizard_value, parameters_dictionary, index, context=None):
+        result = self.pool.get('ir.actions.report.promptwizard').decode_wizard_value(cr, uid, parameters_dictionary, index, wizard_value, context=context)
+        result = json.dumps(result)
+        return result
+
+    def display_value_to_wizard(self, cr, uid, parameter_value, parameters_dictionary, index, x2m_unique_id, context=None):
+        result = json.loads(parameter_value)
+        result = self.pool.get('ir.actions.report.promptwizard').encode_wizard_value(cr, uid, parameters_dictionary, index, x2m_unique_id, result, context=context)
         return result
 
 

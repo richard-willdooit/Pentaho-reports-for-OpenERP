@@ -86,7 +86,7 @@ def retrieve_value(s, known_variables):
             pass
     result = known_variables[s]['calced_value']
     if known_variables[s]['type'] == TYPE_DATE:
-        result = datetime.strptime(result, DEFAULT_SERVER_DATETIME_FORMAT).date()
+        result = datetime.strptime(result, DEFAULT_SERVER_DATE_FORMAT).date()
     if known_variables[s]['type'] == TYPE_TIME:
         result = datetime.strptime(result, DEFAULT_SERVER_DATETIME_FORMAT)
     return result
@@ -201,7 +201,7 @@ class parameter_set_formula(orm.Model):
                         else:
                             operand_dictionary['error'] = _('Formula undefined or restricted: "%s"') % (function_name,)
 
-        if not operand_dictionary['returns'] and not operand_dictionary.get('error'):
+        if not operand_dictionary.get('returns') and not operand_dictionary.get('error'):
             operand_dictionary['error'] = _('Operand unknown or badly formed: %s' % (operand_dictionary.get('value') or operand_dictionary.get('function_name'),))
 
         result.append(operand_dictionary)
@@ -319,9 +319,16 @@ class parameter_set_formula(orm.Model):
 
         op_op, op_type, op_result = self.eval_operand(cr, uid, operands[0], known_variables, context=context)
         result_dtm = op_result
+        result_dtm_type = op_type
         for operand_dictionary in operands[1:]:
             op_op, op_type, op_result = self.eval_operand(cr, uid, operand_dictionary, known_variables, context=context)
             result_dtm = eval('result_dtm %s to_timedelta(op_result, op_type)' % (op_op,))
+        # OpenERP will assume datetimes are UTC, but here they are local!
+        if result_dtm_type == TYPE_TIME:
+            result_dtm = result_dtm.astimezone(pytz.timezone('UTC'))
+        elif expected_type == TYPE_TIME:
+            if context and context.get('tz'):
+                result_dtm = pytz.timezone(context['tz']).localize(datetime.combine(result_dtm,datetime.min.time()), is_dst=False).astimezone(pytz.timezone('UTC'))
         return expected_type == TYPE_DATE and result_dtm.strftime(DEFAULT_SERVER_DATE_FORMAT) or result_dtm.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
 
     def validate_formula(self, cr, uid, formula_str, expected_type, known_variables, context=None):

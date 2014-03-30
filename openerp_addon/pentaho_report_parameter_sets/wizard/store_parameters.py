@@ -31,8 +31,9 @@ class store_parameters_wizard(orm.TransientModel):
         if not context.get('active_id'):
             raise orm.except_orm(_('Error'), _('No active id passed.'))
 
-        screen_wizard_pool = self.pool.get('ir.actions.report.promptwizard')
-        screen_wizard = screen_wizard_pool.browse(cr, uid, context['active_id'])
+        screen_wizard_obj = self.pool.get('ir.actions.report.promptwizard')
+        detail_obj = self.pool.get('ir.actions.report.set.detail')
+        screen_wizard = screen_wizard_obj.browse(cr, uid, context['active_id'])
 
         parameters_dictionary = json.loads(screen_wizard.parameters_dictionary)
 
@@ -51,7 +52,7 @@ class store_parameters_wizard(orm.TransientModel):
                                              'label': parameters_dictionary[index]['label'],
                                              'counter': index,
                                              'type': parameters_dictionary[index]['type'],
-                                             'display_value': screen_wizard_pool.decode_wizard_value(cr, uid, parameters_dictionary, index, getattr(screen_wizard, parameter_resolve_column_name(parameters_dictionary, index)), enc_json=True, context=context),
+                                             'display_value': detail_obj.wizard_value_to_display(cr, uid, getattr(screen_wizard, parameter_resolve_column_name(parameters_dictionary, index)), parameters_dictionary, index, context=context),
                                              'calc_formula': getattr(screen_wizard, parameter_resolve_formula_column_name(parameters_dictionary, index)),
                                              }))
 
@@ -69,7 +70,7 @@ class store_parameters_wizard(orm.TransientModel):
 
         for wizard in self.browse(cr, uid, ids, context=context):
             clash_ids = header_obj.search(cr, uid, [('name', '=', wizard.name)], context=context)
-            if clash_ids and (not replace or len(clash_ids) > 1 or clash_ids[0] != wizard.existing_parameters_id):
+            if clash_ids and (not replace or len(clash_ids) > 1 or clash_ids[0] != wizard.existing_parameters_id.id):
                 # We enforce this so that we can uniquely identify a parameter set when calling from the report scheduler.
                 raise orm.except_orm(_('Error'), _('Parameters must have a unique name across all reports.'))
 

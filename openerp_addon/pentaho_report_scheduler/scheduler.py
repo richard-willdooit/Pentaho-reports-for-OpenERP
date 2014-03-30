@@ -2,6 +2,9 @@ from osv import fields, orm
 import datetime
 from tools.translate import _
 import netsvc
+import json
+
+from openerp.addons.pentaho_reports.java_oe import parameter_resolve_column_name
 
 
 class ReportScheduler(orm.Model):
@@ -78,6 +81,30 @@ class ReportScheduler(orm.Model):
                                                   },
                                         context=context)
 
+    def _check_overriding_values(self, cr, uid, line, values_so_far, context=None):
+        return {}
+
+    def _report_variables(self, cr, uid, line, context=None):
+        result = {}
+        if line.is_pentaho_report:
+            # attempt to fill the prompt wizard as if we had gone in to it from a menu and then run.
+            promptwizard_obj = self.pool.get('ir.actions.report.promptwizard')
+
+            # default_get creates a dictionary of wizard default values
+            values = promptwizard_obj.default_get_external(cr, uid, line.report_id.id, context=context)
+            # this hook is provided to allow for parameter set values, which are not mandatorially installed
+            values.update(self._check_overriding_values(cr, uid, line, values, context=context))
+
+            if values:
+                # now convert virtual screen values from prompt wizard to values which can be passed to the report action
+                result = {'output_type': values.get('output_type'),
+                          'variables': {}}
+                parameters = json.loads(values.get('parameters_dictionary'))
+                for index in range(0, len(parameters)):
+                    result['variables'][parameters[index]['variable']] = promptwizard_obj.decode_wizard_value(cr, uid, parameters, index, values[parameter_resolve_column_name(parameters, index)], context=context)
+
+        return result
+
     def _run_one(self, cr, uid, sched, context=None):
         if sched.line_ids or sched.user_list:
             rpt_obj = self.pool.get('ir.actions.report.xml')
@@ -88,6 +115,7 @@ class ReportScheduler(orm.Model):
                 service_name = "report.%s" % report.report_name
                 datas = {'model': self._name,
                          }
+                datas.update(self._report_variables(cr, uid, line, context=context))
                 content, type = netsvc.LocalService(service_name).create(cr, uid, [], datas, context)
                 report_output.append((report.name, content, type))
             if report_output:

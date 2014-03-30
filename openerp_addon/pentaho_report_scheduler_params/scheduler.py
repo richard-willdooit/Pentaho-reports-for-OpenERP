@@ -1,26 +1,19 @@
 from osv import fields, orm
 from tools.translate import _
 
+import json
+
 
 class ReportSchedulerParams(orm.Model):
     _inherit = "ir.actions.report.scheduler"
 
 
-#    def _run_one(self, cr, uid, sched, context=None):
-#        if sched.line_ids or sched.user_list:
-#            rpt_obj = self.pool.get('ir.actions.report.xml')
-#            user_obj = self.pool.get('res.users')
-#            report_output = []
-#            for line in sched.line_ids:
-#                report = line.report_id
-#                service_name = "report.%s" % report.report_name
-#                datas = {'model': self._name,
-#                         }
-#                content, type = netsvc.LocalService(service_name).create(cr, uid, [], datas, context)
-#                report_output.append((report.name, content, type))
-#            if report_output:
-#                self._send_reports(cr, uid, sched, report_output, context=context)
+    def _check_overriding_values(self, cr, uid, line, values_so_far, context=None):
+        result = super(ReportSchedulerParams, self)._check_overriding_values(cr, uid, line, values_so_far, context=context)
+        if line.parameterset_id and values_so_far:
+            result.update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, line.parameterset_id.id, json.loads(values_so_far.get('parameters_dictionary')), values_so_far.get('x2m_unique_id'), context=context))
 
+        return result
 
 class ReportSchedulerLinesParams(orm.Model):
     _inherit = "ir.actions.report.scheduler.line"
