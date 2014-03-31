@@ -15,10 +15,12 @@ FUNCTION_TYPES = OPENERP_DATA_TYPES + [(FTYPE_TIMEDELTA, 'Time Delta')]
 #
 #    value is a dictionary:
 #        'type' : type of value this formula returns
+#        'type_2m' : true if formula returns a list of values
 #        'call' : the actual formula call, with place holders defined as %x
 #        'arguments' : a list of dictionaries to define acceptable arguments.
 #                        'name' : argument name or undefined for positional arguments
 #                        'types' : list of valid types this argument can accept
+#                        'lists' : arguments can be lists or not
 #                        'insert_at' : which place-holder this should be inserted at - if more than one defined for same 'insert_at', they will be comma separated
 #                        'insert_as' : value will be inserted as a named argument using this as the name - if not defined, then name will be used - if that is undefined, then value only will be inserted
 
@@ -40,8 +42,9 @@ FORMULAE = {'now': {'type': TYPE_TIME,
                               'arguments': [],
                               },
             'last_dow': {'type': TYPE_DATE,
-                         'call': 'self.localise(cr, uid, datetime.now(), context=context).date() - relativedelta(days=1) + dow_offset(%1)',
-                         'arguments': [{'types': (TYPE_STRING),
+                         'call': 'self.localise(cr, uid, datetime.now(), context=context).date() - relativedelta(days=1) - dow_offset(%1)',
+                         'arguments': [{'types': (TYPE_STRING,),
+                                        'lists': (False,),
                                         'insert_at': 1,
                                         'insert_as': 'dow_name'
                                         }],
@@ -49,43 +52,52 @@ FORMULAE = {'now': {'type': TYPE_TIME,
             'next_dow': {'type': TYPE_DATE,
                          'call': 'self.localise(cr, uid, datetime.now(), context=context).date() + relativedelta(days=1) + dow_offset(%1)',
                          'arguments': [{'types': (TYPE_STRING),
-                                         'insert_at': 1,
-                                         'insert_as': 'dow_name'
-                                         }],
+                                        'lists': (False,),
+                                        'insert_at': 1,
+                                        'insert_as': 'dow_name'
+                                        }],
                          },
 
             'date_offset': {'type': FTYPE_TIMEDELTA,
                             'call': 'relativedelta(%1)',
                             'arguments': [{'name': 'years',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'months',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'weeks',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'days',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'hours',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'minutes',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'seconds',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           {'name': 'microseconds',
                                            'types': (TYPE_INTEGER, TYPE_NUMBER),
+                                           'lists': (False,),
                                            'insert_at': 1,
                                            },
                                           ],

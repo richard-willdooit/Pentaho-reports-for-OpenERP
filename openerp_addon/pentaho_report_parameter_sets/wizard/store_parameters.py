@@ -52,6 +52,7 @@ class store_parameters_wizard(orm.TransientModel):
                                              'label': parameters_dictionary[index]['label'],
                                              'counter': index,
                                              'type': parameters_dictionary[index]['type'],
+                                             'x2m': parameter_can_2m(parameters_dictionary, index),
                                              'display_value': detail_obj.wizard_value_to_display(cr, uid, getattr(screen_wizard, parameter_resolve_column_name(parameters_dictionary, index)), parameters_dictionary, index, context=context),
                                              'calc_formula': getattr(screen_wizard, parameter_resolve_formula_column_name(parameters_dictionary, index)),
                                              }))
@@ -93,6 +94,7 @@ class store_parameters_wizard(orm.TransientModel):
                                             'label': detail.label,
                                             'counter': detail.counter,
                                             'type': detail.type,
+                                            'x2m': detail.x2m,
                                             'display_value': detail.display_value,
                                             'calc_formula': detail.calc_formula,
                                             }, context=context)
@@ -135,23 +137,25 @@ class store_parameters_dets_wizard(orm.TransientModel):
                 'label': fields.char('Label', size=64),
                 'counter': fields.integer('Parameter Number'),
                 'type': fields.selection(OPENERP_DATA_TYPES, 'Data Type'),
+                'x2m': fields.boolean('Data List Type'),
                 'display_value': fields.text('Value'),
                 'calc_formula': fields.char('Formula'),
                 }
 
     _order = 'counter'
 
-    def onchange_calc_formula(self, cr, uid, ids, calc_formula, expected_type, parameters_dictionary, context=None):
+    def onchange_calc_formula(self, cr, uid, ids, calc_formula, expected_type, expected_2m, parameters_dictionary, context=None):
         result = {}
         if calc_formula:
             parameters = json.loads(parameters_dictionary)
             known_variables = {}
             for index in range(0, len(parameters)):
                 known_variables[parameters[index]['variable']] = {'type': parameters[index]['type'],
+                                                                  'x2m': parameter_can_2m(parameters, index),
                                                                   'calculated': False,
                                                                   }
 
-            parsed_formula = self.pool.get('ir.actions.report.set.formula').validate_formula(cr, uid, calc_formula, expected_type, known_variables, context=context)
+            parsed_formula = self.pool.get('ir.actions.report.set.formula').validate_formula(cr, uid, calc_formula, expected_type, expected_2m, known_variables, context=context)
             if parsed_formula.get('error'):
                 result['warning'] = {'title': _('Formula Validation'),
                                      'message': parsed_formula['error'],

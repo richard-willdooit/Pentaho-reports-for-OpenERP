@@ -40,6 +40,7 @@ class parameter_set_header(orm.Model):
         known_variables = {}
         for index in range(0, len(parameters)):
             known_variables[parameters[index]['variable']] = {'type': parameters[index]['type'],
+                                                              'x2m': parameter_can_2m(parameters, index),
                                                               'calculated': False,
                                                               }
 
@@ -51,13 +52,14 @@ class parameter_set_header(orm.Model):
                     for detail in parameters_to_load.detail_ids:
                         if detail.variable == parameters[index]['variable']:
                             expected_type = parameters[index]['type']
+                            expected_2m = parameter_can_2m(parameters, index)
                             # check expected_type as TYPE_DATE / TYPE_TIME, etc... and validate display_value is compatible with it
 
                             calculate_formula_this_time = False
                             use_value_this_time = True
 
                             if detail.calc_formula:
-                                formula = formula_obj.validate_formula(cr, uid, detail.calc_formula, expected_type, known_variables, context=context)
+                                formula = formula_obj.validate_formula(cr, uid, detail.calc_formula, expected_type, expected_2m, known_variables, context=context)
                                 #
                                 # if there is an error, we want to ignore the formula and use standard processing of the value...
                                 # if we are arbitrarily forcing a value, then also use standard processing of the value...
@@ -74,14 +76,16 @@ class parameter_set_header(orm.Model):
 
                             if calculate_formula_this_time or use_value_this_time:
                                 if calculate_formula_this_time:
-                                    result[parameter_resolve_column_name(parameters, index)] = formula_obj.evaluate_formula(cr, uid, formula, expected_type, known_variables, context=context)
+                                    display_value = json.dumps(formula_obj.evaluate_formula(cr, uid, formula, expected_type, expected_2m, known_variables, context=context))
                                 else:
-                                    result[parameter_resolve_column_name(parameters, index)] = detail_obj.display_value_to_wizard(cr, uid, detail.display_value, parameters, index, x2m_unique_id, context=context) 
-
+                                    display_value = detail.display_value
+                                result[parameter_resolve_column_name(parameters, index)] = detail_obj.display_value_to_wizard(cr, uid, display_value, parameters, index, x2m_unique_id, context=context) 
                                 result[parameter_resolve_formula_column_name(parameters, index)] = detail.calc_formula
 
                                 known_variables[parameters[index]['variable']].update({'calculated': True,
-                                                                                       'calced_value': result[parameter_resolve_column_name(parameters, index)],
+                                                                                       'calced_value': detail_obj.wizard_value_to_display(cr, uid,
+                                                                                                                                          result[parameter_resolve_column_name(parameters, index)],
+                                                                                                                                          parameters, index, context=context),
                                                                                        })
                                 any_calculated_this_time = True
                             break
@@ -108,6 +112,7 @@ class parameter_set_detail(orm.Model):
                 'label': fields.char('Label', size=64, readonly=True),
                 'counter': fields.integer('Parameter Number', readonly=True),
                 'type': fields.selection(OPENERP_DATA_TYPES, 'Data Type', readonly=True),
+                'x2m': fields.boolean('Data List Type'),
                 'display_value': fields.text('Value'),
                 'calc_formula': fields.char('Formula'),
                 }
