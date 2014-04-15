@@ -214,7 +214,10 @@ class report_prompt_class(orm.TransientModel):
 
         for index in range(0, len(parameters)):
             if parameters[index].get('default'):
-                result[parameter_resolve_column_name(parameters, index)] = parameters[index]['default'] # TODO: Needs to be validated for list values - especially for M2M!
+                if parameter_can_2m(parameters, index):
+                    raise orm.except_orm(_('Error'), _('Multi select default values not supported.'))
+                else:
+                    result[parameter_resolve_column_name(parameters, index)] = parameters[index]['default'] # TODO: Needs to be validated for list values - especially for M2M!
 
         mpwiz_obj = self.pool.get('ir.actions.report.multivalues.promptwizard')
         for index in range(0, len(parameters)):
