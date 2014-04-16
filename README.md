@@ -1,5 +1,7 @@
 ## A Summary of Recent Changes
 
+A more detailed description of changes can be found on the [Pentaho Report for OpenERP wiki](https://github.com/WillowIT/Pentaho-reports-for-OpenERP/wiki/Significant-Changes "Pentaho Reports for OpenERP Wiki")
+
 * April 2014 - Function support for default values in report selection sets, including multi value list selections.
 * March 2014 - Report scheduler with ability to run with selection sets.
 * March 2014 - Report email / message scheduler module added.
