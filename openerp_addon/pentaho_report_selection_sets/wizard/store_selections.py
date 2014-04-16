@@ -11,17 +11,17 @@ from openerp.addons.pentaho_reports.java_oe import OPENERP_DATA_TYPES, parameter
 from ..report_formulae import *
 
 
-class store_parameters_wizard(orm.TransientModel):
-    _name = "ir.actions.store.params.wiz"
-    _description = "Store Pentaho Parameters Wizard"
+class store_selections_wizard(orm.TransientModel):
+    _name = "ir.actions.store.selections.wiz"
+    _description = "Store Report Selections Wizard"
 
     _columns = {
-                'existing_parameters_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', ondelete='set null'),
-                'name': fields.char('Parameter Set Description', size=64, required=True),
+                'existing_selectionset_id': fields.many2one('ir.actions.report.set.header', 'Selection Set', ondelete='set null'),
+                'name': fields.char('Selection Set Description', size=64, required=True),
                 'report_action_id': fields.many2one('ir.actions.report.xml', 'Report Name', readonly=True),
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
                 'parameters_dictionary': fields.text('parameter dictionary'),
-                'detail_ids': fields.one2many('ir.actions.store.params.detail.wiz', 'header_id', 'Parameter Details'),
+                'detail_ids': fields.one2many('ir.actions.store.selections.detail.wiz', 'header_id', 'Selection Details'),
                 'passing_wizard_id': fields.many2one('ir.actions.report.promptwizard', 'Screen wizard - kept for "Cancel" button')
                 }
 
@@ -37,9 +37,9 @@ class store_parameters_wizard(orm.TransientModel):
 
         parameters_dictionary = json.loads(screen_wizard.parameters_dictionary)
 
-        res = super(store_parameters_wizard, self).default_get(cr, uid, fields, context=context)
-        res.update({'existing_parameters_id': screen_wizard.parameter_set_id.id,
-                    'name': screen_wizard.parameter_set_id and screen_wizard.parameter_set_id.name or '',
+        res = super(store_selections_wizard, self).default_get(cr, uid, fields, context=context)
+        res.update({'existing_selectionset_id': screen_wizard.selectionset_id.id,
+                    'name': screen_wizard.selectionset_id and screen_wizard.selectionset_id.name or '',
                     'report_action_id': screen_wizard.report_action_id.id,
                     'output_type': screen_wizard.output_type,
                     'parameters_dictionary': screen_wizard.parameters_dictionary,
@@ -71,9 +71,9 @@ class store_parameters_wizard(orm.TransientModel):
 
         for wizard in self.browse(cr, uid, ids, context=context):
             clash_ids = header_obj.search(cr, uid, [('name', '=', wizard.name)], context=context)
-            if clash_ids and (not replace or len(clash_ids) > 1 or clash_ids[0] != wizard.existing_parameters_id.id):
-                # We enforce this so that we can uniquely identify a parameter set when calling from the report scheduler.
-                raise orm.except_orm(_('Error'), _('Parameters must have a unique name across all reports.'))
+            if clash_ids and (not replace or len(clash_ids) > 1 or clash_ids[0] != wizard.existing_selectionset_id.id):
+                # We enforce this so that users can uniquely identify a selection set.
+                raise orm.except_orm(_('Error'), _('Selection Sets must have unique names across all reports.'))
 
             vals = {'name': wizard.name,
                     'report_action_id': wizard.report_action_id.id,
@@ -82,9 +82,9 @@ class store_parameters_wizard(orm.TransientModel):
                     'detail_ids': [(5,)],
                     }
 
-            if replace and wizard.existing_parameters_id:
-                header_obj.write(cr, uid, [wizard.existing_parameters_id.id], vals, context=context)
-                hdr_id = wizard.existing_parameters_id.id
+            if replace and wizard.existing_selectionset_id:
+                header_obj.write(cr, uid, [wizard.existing_selectionset_id.id], vals, context=context)
+                hdr_id = wizard.existing_selectionset_id.id
             else:
                 hdr_id = header_obj.create(cr, uid, vals, context=context)
 
@@ -100,7 +100,7 @@ class store_parameters_wizard(orm.TransientModel):
                                             }, context=context)
 
         new_context = (context or {}).copy()
-        new_context['populate_parameter_set_id'] = hdr_id
+        new_context['populate_selectionset_id'] = hdr_id
         return {
                 'view_mode': 'form',
                 'res_model': 'ir.actions.report.promptwizard',
@@ -112,8 +112,8 @@ class store_parameters_wizard(orm.TransientModel):
     def button_delete(self, cr, uid, ids, context=None):
         header_obj = self.pool.get('ir.actions.report.set.header')
         for wizard in self.browse(cr, uid, ids, context=context):
-            if wizard.existing_parameters_id:
-                header_obj.unlink(cr, uid, [wizard.existing_parameters_id.id], context=context)
+            if wizard.existing_selectionset_id:
+                header_obj.unlink(cr, uid, [wizard.existing_selectionset_id.id], context=context)
         return self.button_cancel(cr, uid, ids, context=context)
 
     def button_cancel(self, cr, uid, ids, context=None):
@@ -128,11 +128,11 @@ class store_parameters_wizard(orm.TransientModel):
                     }
         return {'type': 'ir.actions.act_window_close'}
 
-class store_parameters_dets_wizard(orm.TransientModel):
-    _name = 'ir.actions.store.params.detail.wiz'
-    _description = "Store Pentaho Parameters Wizard"
+class store_selections_dets_wizard(orm.TransientModel):
+    _name = 'ir.actions.store.selections.detail.wiz'
+    _description = "Store Report Selections Wizard"
 
-    _columns = {'header_id': fields.many2one('ir.actions.store.params.wiz', 'Parameter Set'),
+    _columns = {'header_id': fields.many2one('ir.actions.store.selections.wiz', 'Selections Set'),
                 'variable': fields.char('Variable Name', size=64),
                 'label': fields.char('Label', size=64),
                 'counter': fields.integer('Parameter Number'),

@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <openerp>
 	<data>
-		<record id="view_store_parameters" model="ir.ui.view">
-			<field name="name">Store Report Parameters</field>
-			<field name="model">ir.actions.store.params.wiz</field>
+		<record id="view_store_selections" model="ir.ui.view">
+			<field name="name">Store Report Selections</field>
+			<field name="model">ir.actions.store.selections.wiz</field>
 			<field name="arch" type="xml">
-				<form string="Store Report Parameters" version="7.0">
+				<form string="Store Report Selections" version="7.0">
 					<group>
-						<field name='existing_parameters_id' invisible='1'/>
+						<field name='existing_selectionset_id' invisible='1'/>
 						<field name='name'/>
 						<field name='output_type'/>
 						<field name='parameters_dictionary' invisible='1'/>
@@ -25,10 +25,10 @@
 						</field>
 					</group>
 					<footer>
-						<button name="button_store_new" string="_Store" type="object" class="oe_highlight" attrs="{'invisible': [('existing_parameters_id', '!=', False)]}"/>
-						<button name="button_store_replace" string="_Store (Replace)" type="object" class="oe_highlight" attrs="{'invisible': [('existing_parameters_id', '=', False)]}"/>
-						<button name="button_store_new" string="_Store (New Copy)" type="object" class="oe_highlight" attrs="{'invisible': [('existing_parameters_id', '=', False)]}"/>
-						<button name="button_delete" string="_Delete" type="object" attrs="{'invisible': [('existing_parameters_id', '=', False)]}" confirm="Are you sure you want to remove this record?"/>
+						<button name="button_store_new" string="_Store" type="object" class="oe_highlight" attrs="{'invisible': [('existing_selectionset_id', '!=', False)]}"/>
+						<button name="button_store_replace" string="_Store (Replace)" type="object" class="oe_highlight" attrs="{'invisible': [('existing_selectionset_id', '=', False)]}"/>
+						<button name="button_store_new" string="_Store (New Copy)" type="object" class="oe_highlight" attrs="{'invisible': [('existing_selectionset_id', '=', False)]}"/>
+						<button name="button_delete" string="_Delete" type="object" attrs="{'invisible': [('existing_selectionset_id', '=', False)]}" confirm="Are you sure you want to remove this record?"/>
 						<!-- 'or' should be static text, but bug in "wizard on wizard" footers renders this incorrectly, so put 'or' in button -->
 						<button name="button_cancel" string="or _Cancel" type="object" class="oe_link"/>
 					</footer>
@@ -36,14 +36,14 @@
 			</field>
 		</record>
 
-		<record id="action_store_parameters" model="ir.actions.act_window">
-			<field name="name">Store Report Parameters</field>
+		<record id="action_store_selections" model="ir.actions.act_window">
+			<field name="name">Store Report Selections</field>
 			<field name="type">ir.actions.act_window</field>
-			<field name="res_model">ir.actions.store.params.wiz</field>
+			<field name="res_model">ir.actions.store.selections.wiz</field>
 			<field name="view_type">form</field>
 			<field name="view_mode">form</field>
 			<field name='target'>new</field>
-			<field name="view_id" ref="view_store_parameters"/>
+			<field name="view_id" ref="view_store_selections"/>
 		</record>
 
 	</data>

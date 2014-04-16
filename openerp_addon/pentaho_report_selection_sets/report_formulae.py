@@ -113,9 +113,9 @@ def retrieve_value(s, known_variables):
     return result
 
 
-class parameter_set_formula(orm.Model):
+class selection_set_formula(orm.Model):
     _name = 'ir.actions.report.set.formula'
-    _description = 'Pentaho Report Parameter Set Formulae'
+    _description = 'Pentaho Report Selection Formulae'
 
     _columns = {
                 }

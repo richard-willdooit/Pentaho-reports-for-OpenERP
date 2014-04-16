@@ -92,7 +92,7 @@ class ReportScheduler(orm.Model):
 
             # default_get creates a dictionary of wizard default values
             values = promptwizard_obj.default_get_external(cr, uid, line.report_id.id, context=context)
-            # this hook is provided to allow for parameter set values, which are not mandatorially installed
+            # this hook is provided to allow for selection set values, which are not necessarily installed
             values.update(self._check_overriding_values(cr, uid, line, values, context=context))
 
             if values:

@@ -1,10 +1,10 @@
 ## A Summary of Recent Changes
 
-* April 2014 - Function support for default values in report parameter sets, including multi value list selections.
-* March 2014 - Report scheduler with ability to run with parameter sets.
+* April 2014 - Function support for default values in report selection sets, including multi value list selections.
+* March 2014 - Report scheduler with ability to run with selection sets.
 * March 2014 - Report email / message scheduler module added.
-* March 2014 - Parameter sets creation and recalling.
-* March 2014 - Support for parameters with multi value list selections, implemented as many2manytags widget.
+* March 2014 - Selection sets creation and recalling.
+* March 2014 - Support for selections with multi value lists, implemented as many2manytags widget.
 * December 2013 - Testing and release for Pentaho version 5.0 support.
 * December 2013 - Support reserved variable passing to parameter queries.
 * November 2013 - Pentaho Report Actions better integrated to standard OpenERP Report Actions.

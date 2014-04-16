@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 # v7.0 - Release
 {
-    'name': 'Report Scheduler Parameters',
+    'name': 'Report Scheduler Selection Sets',
     "version": "0.1",
     "author": "WillowIT Pty Ltd",
     'website': 'http://www.willowit.com.au',
     "category": "Reporting subsystems",
-    'summary':'Report Scheduler with Parameter Sets',
+    'summary':'Report Scheduler with Selection Sets',
     'images': [],
-    'depends': ['pentaho_report_parameter_sets',
+    'depends': ['pentaho_report_selection_sets',
                 'pentaho_report_scheduler',
                 ],
     'description': """
-Report Scheduler with Parameter Sets
+Report Scheduler with Selection Sets
 ====================================
-This module provides extends the report scheduler and allows the scheduling of Pentaho reports that have parameter
-sets defined.
+This module provides extends the report scheduler and allows the scheduling of Pentaho reports that have
+pre-defined selection sets.
 
-The desired parameter set to be run needs to be chosen in the report schedule group.
+The desired selection set to be used needs to be chosen in the report schedule group.
     """,
     'data': [
              'scheduler_view.xml',

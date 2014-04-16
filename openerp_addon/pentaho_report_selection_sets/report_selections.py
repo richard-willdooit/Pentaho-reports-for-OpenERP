@@ -17,24 +17,24 @@ from openerp.addons.pentaho_reports.core import VALID_OUTPUT_TYPES
 from report_formulae import *
 
 
-class parameter_set_header(orm.Model):
+class selection_set_header(orm.Model):
     _name = 'ir.actions.report.set.header'
-    _description = 'Pentaho Report Parameter Set Header'
+    _description = 'Pentaho Report Selection Set Header'
 
     _columns = {
-                'name': fields.char('Parameter Set Description', size=64),
+                'name': fields.char('Selection Set Description', size=64),
                 'report_action_id': fields.many2one('ir.actions.report.xml', 'Report Name', readonly=True),
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
                 'parameters_dictionary': fields.text('parameter dictionary'), # Not needed, but helpful if we build a parameter set master view...
-                'detail_ids': fields.one2many('ir.actions.report.set.detail', 'header_id', 'Parameter Details'),
+                'detail_ids': fields.one2many('ir.actions.report.set.detail', 'header_id', 'Selection Details'),
                 }
 
-    def parameters_to_dictionary(self, cr, uid, id, parameters, x2m_unique_id, context=None):
+    def selections_to_dictionary(self, cr, uid, id, parameters, x2m_unique_id, context=None):
         detail_obj = self.pool.get('ir.actions.report.set.detail')
         formula_obj = self.pool.get('ir.actions.report.set.formula')
 
-        result = {}
-        parameters_to_load = self.browse(cr, uid, id, context=context)
+        selections_to_load = self.browse(cr, uid, id, context=context)
+        result = {'output_type': selections_to_load.output_type}
 
         arbitrary_force_calc = None
         known_variables = {}
@@ -49,7 +49,7 @@ class parameter_set_header(orm.Model):
             still_needed_dependent_values = []
             for index in range(0, len(parameters)):
                 if not known_variables[parameters[index]['variable']]['calculated']:
-                    for detail in parameters_to_load.detail_ids:
+                    for detail in selections_to_load.detail_ids:
                         if detail.variable == parameters[index]['variable']:
                             expected_type = parameters[index]['type']
                             expected_2m = parameter_can_2m(parameters, index)
@@ -103,11 +103,11 @@ class parameter_set_header(orm.Model):
         return result
 
 
-class parameter_set_detail(orm.Model):
+class selection_set_detail(orm.Model):
     _name = 'ir.actions.report.set.detail'
-    _description = 'Pentaho Report Parameter Set Detail'
+    _description = 'Pentaho Report Selection Set Detail'
 
-    _columns = {'header_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', ondelete='cascade', readonly=True),
+    _columns = {'header_id': fields.many2one('ir.actions.report.set.header', 'Selection Set', ondelete='cascade', readonly=True),
                 'variable': fields.char('Variable Name', size=64, readonly=True),
                 'label': fields.char('Label', size=64, readonly=True),
                 'counter': fields.integer('Parameter Number', readonly=True),
@@ -124,24 +124,24 @@ class parameter_set_detail(orm.Model):
         result = json.dumps(result)
         return result
 
-    def display_value_to_wizard(self, cr, uid, parameter_value, parameters_dictionary, index, x2m_unique_id, context=None):
-        result = json.loads(parameter_value)
+    def display_value_to_wizard(self, cr, uid, selection_value, parameters_dictionary, index, x2m_unique_id, context=None):
+        result = selection_value and json.loads(selection_value) or False
         result = self.pool.get('ir.actions.report.promptwizard').encode_wizard_value(cr, uid, parameters_dictionary, index, x2m_unique_id, result, context=context)
         return result
 
 
-class report_prompt_with_parameter_set(orm.TransientModel):
+class report_prompt_with_selection_set(orm.TransientModel):
     _inherit = 'ir.actions.report.promptwizard'
 
     _columns = {
-                'has_params': fields.boolean('Has Parameters...'),
-                'parameter_set_id': fields.many2one('ir.actions.report.set.header', 'Parameter Set', ondelete='set null'),
+                'has_selns': fields.boolean('Has Selection Sets...'),
+                'selectionset_id': fields.many2one('ir.actions.report.set.header', 'Stored Selections', ondelete='set null'),
                 }
 
     def __init__(self, pool, cr):
         """ Dynamically add columns."""
 
-        super(report_prompt_with_parameter_set, self).__init__(pool, cr)
+        super(report_prompt_with_selection_set, self).__init__(pool, cr)
 
         for counter in range(0, MAX_PARAMS):
             field_name = PARAM_XXX_FORMULA % counter
@@ -151,20 +151,20 @@ class report_prompt_with_parameter_set(orm.TransientModel):
         if context is None:
             context = {}
 
-        result = super(report_prompt_with_parameter_set, self).default_get(cr, uid, fields, context=context)
-        result['has_params'] = self.pool.get('ir.actions.report.set.header').search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context, count=True) > 0
+        result = super(report_prompt_with_selection_set, self).default_get(cr, uid, fields, context=context)
+        result['has_selns'] = self.pool.get('ir.actions.report.set.header').search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context, count=True) > 0
 
         parameters = json.loads(result.get('parameters_dictionary', []))
         for index in range(0, len(parameters)):
             result[parameter_resolve_formula_column_name(parameters, index)] = ''
 
-        if context.get('populate_parameter_set_id'):
-            parameter_set = self.pool.get('ir.actions.report.set.header').browse(cr, uid, context['populate_parameter_set_id'], context=context)
-            if parameter_set.report_action_id.id != result['report_action_id']:
-                raise orm.except_orm(_('Error'), _('Report parameters do not match service name called.'))
+        if context.get('populate_selectionset_id'):
+            selectionset = self.pool.get('ir.actions.report.set.header').browse(cr, uid, context['populate_selectionset_id'], context=context)
+            if selectionset.report_action_id.id != result['report_action_id']:
+                raise orm.except_orm(_('Error'), _('Report selections do not match service name called.'))
 
             # set this and let onchange be triggered and initialise correct values
-            result['parameter_set_id'] = context.pop('populate_parameter_set_id')
+            result['selectionset_id'] = context.pop('populate_selectionset_id')
 
         return result
 
@@ -176,7 +176,7 @@ class report_prompt_with_parameter_set(orm.TransientModel):
                 if v is not None:
                     sf.set(k, v)
 
-        super(report_prompt_with_parameter_set, self).fvg_add_one_parameter(cr, uid, result, selection_groups, parameters, index, first_parameter, context=context)
+        super(report_prompt_with_selection_set, self).fvg_add_one_parameter(cr, uid, result, selection_groups, parameters, index, first_parameter, context=context)
 
         field_name = parameter_resolve_formula_column_name(parameters, index)
         result['fields'][field_name] = {'selectable': self._columns[field_name].selectable,
@@ -193,9 +193,9 @@ class report_prompt_with_parameter_set(orm.TransientModel):
                            modifiers = '{"invisible": true}',
                            )
 
-    def onchange_parameter_set_id(self, cr, uid, ids, parameter_set_id, parameters_dictionary, x2m_unique_id, context=None):
+    def onchange_selectionset_id(self, cr, uid, ids, selectionset_id, parameters_dictionary, x2m_unique_id, context=None):
         result = {'value': {}}
-        if parameter_set_id:
+        if selectionset_id:
             parameters = json.loads(parameters_dictionary)
-            result['value'].update(self.pool.get('ir.actions.report.set.header').parameters_to_dictionary(cr, uid, parameter_set_id, parameters, x2m_unique_id, context=context))
+            result['value'].update(self.pool.get('ir.actions.report.set.header').selections_to_dictionary(cr, uid, selectionset_id, parameters, x2m_unique_id, context=context))
         return result

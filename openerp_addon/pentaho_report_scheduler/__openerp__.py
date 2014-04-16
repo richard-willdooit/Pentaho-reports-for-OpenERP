@@ -14,8 +14,8 @@ Report Email / Message Scheduler
 ================================
 This module provides a simple scheduler running daily reports. The reports may not accept any parameters.
 
-The module "Report Scheduler Parameters" (pentaho_report_scheduler_params) module extends this module and allows
-Pentaho reports to be scheduled with defined parameter sets.
+The module "Report Scheduler Selection Sets" (pentaho_report_scheduler_selection_sets) module extends this module
+and allows Pentaho reports to be scheduled with pre-entered selections.
 
 Chosen reports can be either emailed to users or sent to their OpenERP message box as a notification, or both.
 

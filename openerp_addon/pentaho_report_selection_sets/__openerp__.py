@@ -1,12 +1,12 @@
 # -*- encoding: utf-8 -*-
 # v7.0 - Release
 {
-    "name": "Pentaho Report Parameter Saving",
+    "name": "Pentaho Report Selections Saving",
     "description": """
-Pentaho - Report Parameter Saving
-=================================
-This module builds on the OpenERP Pentaho Report functionality by allowing sets of prompted parameters to be stored
-and retrieved.
+Pentaho - Report Selections Saving
+==================================
+This module builds on the OpenERP Pentaho Report functionality by allowing report selections to be stored and
+retrieved.  Those selections can have a dynamic element by using selection default functions.
 
     """,
     "version": "0.1",
@@ -16,7 +16,7 @@ and retrieved.
     "category": "Reporting subsystems",
     "data": [
              "security/ir.model.access.csv",
-             "wizard/store_parameters.xml",
+             "wizard/store_selections.xml",
              "report_prompt.xml",
              ],
     "installable": True,
