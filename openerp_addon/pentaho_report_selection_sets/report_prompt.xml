@@ -7,7 +7,7 @@
 			<field name='inherit_id' ref='pentaho_reports.wiz_pentaho_report_prompt'/>
 			<field name='arch' type='xml'>
 				<group name='buttons' position='after'>
-					<button name="%(action_store_selections)d" type="action" string="Store Selections"/>
+					<button name="%(action_store_selections)d" type="action" string="Store Selections" groups="pentaho_report_selection_sets.group_maintain_selection_sets"/>
 				</group>
 				<field name='report_action_id' position='after'>
 					<field name='has_selns' invisible='1'/>
