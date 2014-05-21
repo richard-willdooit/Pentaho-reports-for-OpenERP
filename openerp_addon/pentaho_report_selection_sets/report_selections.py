@@ -27,6 +27,8 @@ class selection_set_header(orm.Model):
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
                 'parameters_dictionary': fields.text('parameter dictionary'), # Not needed, but helpful if we build a parameter set master view...
                 'detail_ids': fields.one2many('ir.actions.report.set.detail', 'header_id', 'Selection Details'),
+                'def_user_ids': fields.many2many('res.users', 'ir_actions_report_set_def_user_rel', 'header_id', 'user_id', 'Users (Default)'),
+                'def_group_ids': fields.many2many('res.groups', 'ir_actions_report_set_def_group_rel', 'header_id', 'group_id', 'Groups (Default)'),
                 }
 
     def selections_to_dictionary(self, cr, uid, id, parameters, x2m_unique_id, context=None):
@@ -151,20 +153,36 @@ class report_prompt_with_selection_set(orm.TransientModel):
         if context is None:
             context = {}
 
+        set_header_obj = self.pool.get('ir.actions.report.set.header')
+
         result = super(report_prompt_with_selection_set, self).default_get(cr, uid, fields, context=context)
-        result['has_selns'] = self.pool.get('ir.actions.report.set.header').search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context, count=True) > 0
+        set_header_ids = set_header_obj.search(cr, uid, [('report_action_id', '=', result['report_action_id'])], context=context)
+        result['has_selns'] = len(set_header_ids) > 0
 
         parameters = json.loads(result.get('parameters_dictionary', []))
         for index in range(0, len(parameters)):
             result[parameter_resolve_formula_column_name(parameters, index)] = ''
 
         if context.get('populate_selectionset_id'):
-            selectionset = self.pool.get('ir.actions.report.set.header').browse(cr, uid, context['populate_selectionset_id'], context=context)
+            selectionset = set_header_obj.browse(cr, uid, context['populate_selectionset_id'], context=context)
             if selectionset.report_action_id.id != result['report_action_id']:
                 raise orm.except_orm(_('Error'), _('Report selections do not match service name called.'))
 
             # set this and let onchange be triggered and initialise correct values
             result['selectionset_id'] = context.pop('populate_selectionset_id')
+        else:
+            default_selset_id = False
+            for sel_set in set_header_obj.browse(cr, uid, set_header_ids, context=context):
+                if uid in [u.id for u in sel_set.def_user_ids]:
+                    default_selset_id = sel_set.id
+                    break # This will break out of the main loop, which is correct - we have an explicit default
+                for g in sel_set.def_group_ids:
+                    if uid in [u.id for u in g.users]:
+                        default_selset_id = sel_set.id
+                        break # This will break out of the inner loop, which is correct - we want to repeat the outer loop in case there is an explicit overriding default
+
+            if default_selset_id:
+                result['selectionset_id'] = default_selset_id
 
         return result
 

@@ -22,6 +22,8 @@ class store_selections_wizard(orm.TransientModel):
                 'output_type': fields.selection(VALID_OUTPUT_TYPES, 'Report format', help='Choose the format for the output'),
                 'parameters_dictionary': fields.text('parameter dictionary'),
                 'detail_ids': fields.one2many('ir.actions.store.selections.detail.wiz', 'header_id', 'Selection Details'),
+                'def_user_ids': fields.many2many('res.users', 'ir_actions_store_selections_def_user_rel', 'header_id', 'user_id', 'Users (Default)'),
+                'def_group_ids': fields.many2many('res.groups', 'ir_actions_store_selections_def_group_rel', 'header_id', 'group_id', 'Groups (Default)'),
                 'passing_wizard_id': fields.many2one('ir.actions.report.promptwizard', 'Screen wizard - kept for "Cancel" button')
                 }
 
@@ -44,6 +46,8 @@ class store_selections_wizard(orm.TransientModel):
                     'output_type': screen_wizard.output_type,
                     'parameters_dictionary': screen_wizard.parameters_dictionary,
                     'detail_ids': [],
+                    'def_user_ids': [],
+                    'def_group_ids': [],
                     'passing_wizard_id': screen_wizard.id,
                     })
 
@@ -56,6 +60,10 @@ class store_selections_wizard(orm.TransientModel):
                                              'display_value': detail_obj.wizard_value_to_display(cr, uid, getattr(screen_wizard, parameter_resolve_column_name(parameters_dictionary, index)), parameters_dictionary, index, context=context),
                                              'calc_formula': getattr(screen_wizard, parameter_resolve_formula_column_name(parameters_dictionary, index)),
                                              }))
+
+        if screen_wizard.selectionset_id:
+            res['def_user_ids'] = [(6, 0, [u.id for u in screen_wizard.selectionset_id.def_user_ids])]
+            res['def_group_ids'] = [(6, 0, [g.id for g in screen_wizard.selectionset_id.def_group_ids])]
 
         return res
 
@@ -80,6 +88,8 @@ class store_selections_wizard(orm.TransientModel):
                     'output_type': wizard.output_type,
                     'parameters_dictionary': wizard.parameters_dictionary,
                     'detail_ids': [(5,)],
+                    'def_user_ids': [(6, 0, [u.id for u in wizard.def_user_ids])],
+                    'def_group_ids': [(6, 0, [g.id for g in wizard.def_group_ids])],
                     }
 
             if replace and wizard.existing_selectionset_id:
